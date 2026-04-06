@@ -4,7 +4,7 @@
 
 const API_BASE = window.location.hostname === 'localhost'
   ? 'http://localhost:3001/api'
-  : 'https://VOTRE_BACKEND.railway.app/api'; // TODO: remplacer par votre URL Railway
+  : 'https://dubble-bet-production.up.railway.app/api'; // TODO: remplacer par votre URL Railway
 
 // ===================================================
 // DONNÉES DE DÉMONSTRATION
