@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Inscription — Dubble Bet</title>
+  <link rel="icon" href="../dubblebet.png" />
+  <link rel="stylesheet" href="../css/style.css" />
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+  <!-- Stripe.js — TODO: remplacer par votre clé publique -->
+  <script src="https://js.stripe.com/v3/"></script>
+</head>
+<body>
+
+  <header class="navbar">
+    <div class="nav-container">
+      <a href="../index.html" class="logo">
+        <img src="../dubblebet.png" alt="Dubble Bet" />
+        <div class="logo-text">
+          <span class="logo-dubble">DUBBLE</span>
+          <span class="logo-bet">BET</span>
+        </div>
+      </a>
+    </div>
+  </header>
+
+  <div class="auth-page" style="align-items: flex-start; padding-top: 100px;">
+    <div class="auth-card" style="max-width: 520px;">
+
+      <div class="auth-logo">
+        <img src="../dubblebet.png" alt="Dubble Bet" />
+        <h1 class="auth-title">Créer un compte</h1>
+        <p class="auth-sub">Choisissez votre plan et commencez</p>
+      </div>
+
+      <div class="auth-error" id="authError"></div>
+
+      <form class="auth-form" id="registerForm" onsubmit="handleRegister(event)">
+
+        <!-- Choix du plan -->
+        <div class="form-group">
+          <label class="form-label">Votre plan</label>
+          <div class="plan-selector" id="planSelector">
+
+            <label class="plan-option" data-plan="starter">
+              <input type="radio" name="plan" value="starter" />
+              <div class="plan-option-info">
+                <div class="plan-option-name">Starter</div>
+                <div class="plan-option-desc">5 pronos/semaine · Football & Tennis · Alertes value</div>
+              </div>
+              <div class="plan-option-price">15€<span style="font-size:12px;color:var(--grey)">/mois</span></div>
+            </label>
+
+            <label class="plan-option selected" data-plan="pro">
+              <input type="radio" name="plan" value="pro" checked />
+              <div class="plan-option-info">
+                <div class="plan-option-name">Pro ⭐</div>
+                <div class="plan-option-desc">10 pronos/semaine · Tous les sports · Alertes value</div>
+              </div>
+              <div class="plan-option-price">20€<span style="font-size:12px;color:var(--grey)">/mois</span></div>
+            </label>
+
+            <label class="plan-option" data-plan="expert">
+              <input type="radio" name="plan" value="expert" />
+              <div class="plan-option-info">
+                <div class="plan-option-name">Expert</div>
+                <div class="plan-option-desc">30 pronos/semaine · Tous les sports · Alertes value</div>
+              </div>
+              <div class="plan-option-price">50€<span style="font-size:12px;color:var(--grey)">/mois</span></div>
+            </label>
+
+            <label class="plan-option" data-plan="illimite">
+              <input type="radio" name="plan" value="illimite" />
+              <div class="plan-option-info">
+                <div class="plan-option-name">Illimité ⭐</div>
+                <div class="plan-option-desc">Pronos illimités · Tous les sports · Alertes value</div>
+              </div>
+              <div class="plan-option-price">100€<span style="font-size:12px;color:var(--grey)">/mois</span></div>
+            </label>
+
+            <label class="plan-option" data-plan="unit">
+              <input type="radio" name="plan" value="unit" />
+              <div class="plan-option-info">
+                <div class="plan-option-name">À l'unité</div>
+                <div class="plan-option-desc">Sans abonnement · Paiement unique</div>
+              </div>
+              <div class="plan-option-price">5€<span style="font-size:12px;color:var(--grey)">/prono</span></div>
+            </label>
+
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="email">Adresse email</label>
+          <input class="form-input" id="email" type="email" placeholder="toi@exemple.fr" required autocomplete="email" />
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="password">Mot de passe</label>
+          <input class="form-input" id="password" type="password" placeholder="8 caractères minimum" required minlength="8" autocomplete="new-password" />
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="confirm">Confirmer le mot de passe</label>
+          <input class="form-input" id="confirm" type="password" placeholder="••••••••" required autocomplete="new-password" />
+        </div>
+
+        <button type="submit" class="btn-auth" id="registerBtn">
+          Créer mon compte &amp; payer
+        </button>
+      </form>
+
+      <div class="divider">OU</div>
+
+      <button class="btn-google" onclick="handleGoogleRegister()">
+        <svg width="20" height="20" viewBox="0 0 24 24">
+          <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+          <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+          <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
+          <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+        </svg>
+        Continuer avec Google
+      </button>
+
+      <p class="auth-footer">
+        Déjà un compte ? <a href="login.html">Se connecter</a>
+      </p>
+
+      <p style="font-size:11px; color:rgba(255,255,255,0.2); text-align:center; margin-top:16px; line-height:1.6;">
+        En créant un compte, vous acceptez nos CGU. Le paiement est sécurisé par Stripe. Interdit aux mineurs de moins de 18 ans.
+      </p>
+    </div>
+  </div>
+
+  <script src="../js/supabase.js"></script>
+  <script src="../js/app.js"></script>
+  <script>
+    // Pré-sélection plan via URL (?plan=pro)
+    const urlPlan = new URLSearchParams(window.location.search).get('plan');
+    if (urlPlan) {
+      document.querySelectorAll('.plan-option').forEach(el => {
+        const isMatch = el.dataset.plan === urlPlan;
+        el.classList.toggle('selected', isMatch);
+        el.querySelector('input').checked = isMatch;
+      });
+    }
+
+    // Sélection visuelle du plan
+    document.querySelectorAll('.plan-option').forEach(option => {
+      option.addEventListener('click', () => {
+        document.querySelectorAll('.plan-option').forEach(o => o.classList.remove('selected'));
+        option.classList.add('selected');
+        option.querySelector('input').checked = true;
+      });
+    });
+
+    // Détecte si Supabase est configuré (clés réelles vs placeholders)
+    const SUPABASE_CONFIGURED = !window.location.href.includes('VOTRE_PROJECT_ID')
+      && typeof window.supabase !== 'undefined'
+      && !document.querySelector('script[src*="supabase"]')?.getAttribute('src')?.includes('placeholder');
+
+    function isSupabaseReady() {
+      try {
+        const client = window.DB && typeof window.DB.getSession === 'function';
+        // Vérifie que l'URL n'est pas un placeholder
+        const scripts = [...document.querySelectorAll('script')];
+        const jsFile  = scripts.find(s => s.src?.includes('supabase.js'));
+        return client; // On tente, le catch gérera si non configuré
+      } catch { return false; }
+    }
+
+    // Redirige si déjà connecté (silencieux si Supabase non configuré)
+    (async () => {
+      try {
+        const session = await window.DB.getSession();
+        if (session) window.location.href = 'dashboard.html';
+      } catch { /* Supabase non configuré — mode démo */ }
+    })();
+
+    async function handleRegister(e) {
+      e.preventDefault();
+      const btn     = document.getElementById('registerBtn');
+      const errorEl = document.getElementById('authError');
+
+      const email    = document.getElementById('email').value.trim();
+      const password = document.getElementById('password').value;
+      const confirm  = document.getElementById('confirm').value;
+      const plan     = document.querySelector('input[name="plan"]:checked')?.value || 'pro';
+
+      errorEl.classList.remove('show');
+
+      if (!email) {
+        errorEl.textContent = 'Veuillez entrer votre adresse email.';
+        errorEl.classList.add('show');
+        return;
+      }
+      if (password.length < 8) {
+        errorEl.textContent = 'Le mot de passe doit contenir au moins 8 caractères.';
+        errorEl.classList.add('show');
+        return;
+      }
+      if (password !== confirm) {
+        errorEl.textContent = 'Les mots de passe ne correspondent pas.';
+        errorEl.classList.add('show');
+        return;
+      }
+
+      btn.textContent = 'Création du compte...';
+      btn.disabled = true;
+
+      // Sauvegarder les infos en session pour le dashboard
+      sessionStorage.setItem('db_user', JSON.stringify({
+        email,
+        plan,
+        name: email.split('@')[0],
+      }));
+
+      try {
+        // Tentative Supabase (si configuré)
+        await window.DB.signUp(email, password, { plan });
+      } catch (err) {
+        // Supabase non configuré → on continue en mode démo
+        if (!err.message?.includes('already registered')) {
+          console.info('[Mode démo] Supabase non configuré :', err.message);
+        } else {
+          errorEl.textContent = 'Cet email est déjà utilisé.';
+          errorEl.classList.add('show');
+          btn.textContent = 'Créer mon compte & payer';
+          btn.disabled = false;
+          return;
+        }
+      }
+
+      // Tentative Stripe (si backend disponible)
+      try {
+        const PRICE_IDS = {
+          starter:  'price_STRIPE_STARTER_ID',  // TODO: remplacer
+          pro:      'price_STRIPE_PRO_ID',
+          expert:   'price_STRIPE_EXPERT_ID',
+          illimite: 'price_STRIPE_ILLIMITE_ID',
+          unit:     'price_STRIPE_UNIT_ID',
+        };
+        const res = await window.App.callAPI('/payments/checkout', {
+          method: 'POST',
+          body: JSON.stringify({ plan, email, priceId: PRICE_IDS[plan] }),
+        });
+        if (res?.url) {
+          window.location.href = res.url;
+          return;
+        }
+      } catch { /* Backend non disponible → mode démo */ }
+
+      // Mode démo : redirection directe vers le dashboard
+      btn.textContent = 'Redirection...';
+      setTimeout(() => { window.location.href = 'dashboard.html'; }, 600);
+    }
+
+    async function handleGoogleRegister() {
+      try {
+        await window.DB.signInWithGoogle();
+      } catch (err) {
+        // Mode démo : redirection directe
+        console.info('[Mode démo] Google OAuth non configuré');
+        sessionStorage.setItem('db_user', JSON.stringify({ email: 'demo@dubblebet.fr', plan: 'pro', name: 'Demo' }));
+        window.location.href = 'dashboard.html';
+      }
+    }
+  </script>
+</body>
+</html>

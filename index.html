@@ -1,0 +1,418 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Dubble Bet — Pronostics Sportifs IA</title>
+  <link rel="icon" href="dubblebet.png" />
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+
+  <!-- NAVBAR -->
+  <header class="navbar">
+    <div class="nav-container">
+      <div class="logo">
+        <img src="dubblebet.png" alt="Dubble Bet" />
+        <div class="logo-text">
+          <span class="logo-dubble">DUBBLE</span>
+          <span class="logo-bet">BET</span>
+        </div>
+      </div>
+      <nav class="nav-links">
+        <a href="#sports">Sports</a>
+        <a href="#comment">Comment ça marche</a>
+        <a href="#tarifs">Tarifs</a>
+        <a href="pages/login.html" class="btn-nav-login">Connexion</a>
+        <a href="pages/register.html" class="btn-nav-cta">S'inscrire</a>
+      </nav>
+      <button class="burger" onclick="toggleMenu()" aria-label="Menu">
+        <span></span><span></span><span></span>
+      </button>
+    </div>
+    <div class="nav-mobile" id="mobileMenu">
+      <a href="#sports">Sports</a>
+      <a href="#comment">Comment ça marche</a>
+      <a href="#tarifs">Tarifs</a>
+      <a href="pages/login.html">Connexion</a>
+      <a href="pages/register.html" class="btn-nav-cta">S'inscrire</a>
+    </div>
+  </header>
+
+  <!-- HERO -->
+  <section class="hero">
+    <div class="hero-bg-grid"></div>
+    <div class="hero-glow"></div>
+    <div class="hero-content">
+      <div class="hero-badge">
+        <span class="badge-dot"></span>
+        IA active — 12 pronostics générés aujourd'hui
+      </div>
+      <h1 class="hero-title">
+        L'IA qui <span class="highlight-yellow">prédit</span><br />
+        avant les bookmakers
+      </h1>
+      <p class="hero-sub">
+        Dubble Bet analyse les stats, les cotes du marché et la forme des joueurs pour te donner des pronostics à <strong>cote minimum 1.90</strong> — avec une transparence totale.
+      </p>
+      <div class="hero-cta">
+        <a href="pages/register.html" class="btn-primary">Commencer maintenant</a>
+        <a href="#comment" class="btn-secondary">Voir comment ça marche</a>
+      </div>
+      <div class="hero-stats">
+        <div class="stat">
+          <span class="stat-num">62%</span>
+          <span class="stat-label">Taux de réussite</span>
+        </div>
+        <div class="stat-divider"></div>
+        <div class="stat">
+          <span class="stat-num">1.90+</span>
+          <span class="stat-label">Cote minimum</span>
+        </div>
+        <div class="stat-divider"></div>
+        <div class="stat">
+          <span class="stat-num">6</span>
+          <span class="stat-label">Sports couverts</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Prono card démo -->
+    <div class="hero-card-preview">
+      <div class="prono-card">
+        <div class="prono-card-header">
+          <span class="prono-sport">⚽ Ligue 1 — J30</span>
+          <span class="prono-live">LIVE</span>
+        </div>
+        <div class="prono-match">
+          <div class="team">
+            <div class="team-logo green-bg">PSG</div>
+            <span>Paris SG</span>
+          </div>
+          <div class="prono-vs">VS</div>
+          <div class="team">
+            <div class="team-logo grey-bg">OL</div>
+            <span>Lyon</span>
+          </div>
+        </div>
+        <div class="prono-result">
+          <div class="prono-pick">
+            <span class="pick-label">Pronostic IA</span>
+            <span class="pick-value">Victoire PSG</span>
+          </div>
+          <div class="prono-cote">
+            <span class="cote-label">Cote moy. marché</span>
+            <span class="cote-value">1.94</span>
+          </div>
+        </div>
+        <div class="prono-confidence">
+          <div class="confidence-bar">
+            <div class="confidence-fill" id="heroBar" style="width: 0%"></div>
+          </div>
+          <span class="confidence-text">Confiance IA : 74%</span>
+        </div>
+        <div class="prono-details">
+          <div class="detail-tag green">✓ Mbappé titulaire</div>
+          <div class="detail-tag red">✗ Lacazette blessé</div>
+          <div class="detail-tag yellow">⚡ Value +12%</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- SPORTS -->
+  <section class="sports" id="sports">
+    <div class="container">
+      <div class="section-header">
+        <p class="section-tag">Couverture</p>
+        <h2>6 sports analysés<br /><span class="highlight-green">par notre IA</span></h2>
+      </div>
+      <div class="sports-grid">
+        <div class="sport-card reveal">
+          <div class="sport-icon">⚽</div>
+          <h3>Football</h3>
+          <p>Ligue 1, Premier League, Liga, Bundesliga, Champions League et Europa League.</p>
+          <div class="sport-accuracy">Précision <span>62%</span></div>
+        </div>
+        <div class="sport-card featured reveal">
+          <div class="sport-badge">Meilleur taux</div>
+          <div class="sport-icon">🎾</div>
+          <h3>Tennis</h3>
+          <p>ATP, WTA, Grand Chelems — le sport le plus prédictible de notre modèle.</p>
+          <div class="sport-accuracy">Précision <span>68%</span></div>
+        </div>
+        <div class="sport-card reveal">
+          <div class="sport-icon">🏀</div>
+          <h3>Basketball</h3>
+          <p>NBA, Euroleague, Pro A — analyse des back-to-backs et de la fatigue d'équipe.</p>
+          <div class="sport-accuracy">Précision <span>64%</span></div>
+        </div>
+        <div class="sport-card reveal">
+          <div class="sport-icon">🥊</div>
+          <h3>MMA & Boxe</h3>
+          <p>UFC, Bellator — styles de combat, reach, cardio et statistiques de frappe.</p>
+          <div class="sport-accuracy">Précision <span>57%</span></div>
+        </div>
+        <div class="sport-card reveal">
+          <div class="sport-icon">🏉</div>
+          <h3>Rugby</h3>
+          <p>Top 14, Champions Cup — mêlées, discipline, possession et xG défensif.</p>
+          <div class="sport-accuracy">Précision <span>59%</span></div>
+        </div>
+        <div class="sport-card coming-soon reveal">
+          <div class="sport-icon">🏆</div>
+          <h3>Bientôt</h3>
+          <p>D'autres sports en cours d'intégration. Handball, Volleyball, F1...</p>
+          <div class="sport-accuracy">En développement</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- COMMENT ÇA MARCHE -->
+  <section class="how" id="comment">
+    <div class="container">
+      <div class="section-header">
+        <p class="section-tag">Processus</p>
+        <h2>Comment Dubble Bet<br /><span class="highlight-green">travaille pour toi</span></h2>
+      </div>
+      <div class="steps">
+        <div class="step reveal">
+          <div class="step-num">01</div>
+          <div class="step-content">
+            <h3>Tu choisis un match ou une ligue</h3>
+            <p>Sélectionne un sport, une compétition ou une date. L'IA scanne tous les matchs disponibles via API-Sports.</p>
+          </div>
+        </div>
+        <div class="step-arrow">→</div>
+        <div class="step reveal">
+          <div class="step-num">02</div>
+          <div class="step-content">
+            <h3>L'IA analyse tout en temps réel</h3>
+            <p>Stats équipes, forme des joueurs clés, blessés/suspendus, compositions et cotes des bookmakers. En direct.</p>
+          </div>
+        </div>
+        <div class="step-arrow">→</div>
+        <div class="step reveal">
+          <div class="step-num">03</div>
+          <div class="step-content">
+            <h3>Filtre valeur cote ≥ 1.90</h3>
+            <p>Seuls les picks à haute valeur passent. L'IA compare sa propre cote calculée à la moyenne du marché.</p>
+          </div>
+        </div>
+        <div class="step-arrow">→</div>
+        <div class="step reveal">
+          <div class="step-num">04</div>
+          <div class="step-content">
+            <h3>Tu affines avec 3 re-analyses</h3>
+            <p>Tu ajoutes une info terrain — blessure non officielle, info vestiaire, météo — et l'IA recalcule instantanément.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- FEATURES -->
+  <section class="features">
+    <div class="container">
+      <div class="features-grid">
+        <div class="feature-big reveal">
+          <div class="feature-icon-big">🧠</div>
+          <h3>Analyse transparente</h3>
+          <p>Dubble Bet te montre exactement pourquoi l'IA recommande un pick. Chaque facteur est détaillé — forme, cotes, joueurs clés, avantage terrain.</p>
+          <div class="feature-example">
+            <div class="fe-row"><span class="fe-label">Forme équipe (5 derniers)</span><span class="fe-val green">80% ✓</span></div>
+            <div class="fe-row"><span class="fe-label">Buts marqués / match</span><span class="fe-val green">2.3 ✓</span></div>
+            <div class="fe-row"><span class="fe-label">Joueur clé</span><span class="fe-val green">Titulaire ✓</span></div>
+            <div class="fe-row"><span class="fe-label">Value détectée</span><span class="fe-val yellow">+12% ⚡</span></div>
+          </div>
+        </div>
+        <div class="features-right">
+          <div class="feature-small reveal">
+            <div class="fs-icon">📊</div>
+            <div>
+              <h4>Cotes du marché en temps réel</h4>
+              <p>L'IA compare les cotes de Bet365, Unibet, Betclic et Winamax. Elle calcule la cote moyenne et détecte automatiquement les value bets.</p>
+            </div>
+          </div>
+          <div class="feature-small reveal">
+            <div class="fs-icon">🔄</div>
+            <div>
+              <h4>3 re-analyses par pronostic</h4>
+              <p>Tu ajoutes une info non officielle — clash vestiaire, méforme, météo — l'IA recalcule instantanément et met à jour son score de confiance.</p>
+            </div>
+          </div>
+          <div class="feature-small reveal">
+            <div class="fs-icon">🩹</div>
+            <div>
+              <h4>Effectifs en temps réel</h4>
+              <p>Blessés, suspendus, compositions probables récupérés automatiquement via API officielle avant chaque analyse.</p>
+            </div>
+          </div>
+          <div class="feature-small reveal">
+            <div class="fs-icon">⚡</div>
+            <div>
+              <h4>Paris simples ou combinés</h4>
+              <p>Tu choisis : un paris simple ou un combiné. L'IA adapte son analyse et t'avertit si le risque combiné est trop élevé.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- TARIFS -->
+  <section class="pricing" id="tarifs">
+    <div class="container">
+      <div class="section-header">
+        <p class="section-tag">Tarifs</p>
+        <h2>Simple, transparent,<br /><span class="highlight-green">sans engagement</span></h2>
+      </div>
+      <div class="pricing-grid">
+        <!-- Starter -->
+        <div class="pricing-card reveal">
+          <div class="plan-name">Starter</div>
+          <div class="plan-price"><span class="price-num">15</span><span class="price-cur">€/mois</span></div>
+          <div class="plan-sub">5 pronostics par semaine</div>
+          <ul class="plan-features">
+            <li>✓ 5 pronos/semaine</li>
+            <li>✓ Football & Tennis</li>
+            <li>✓ Analyse IA complète</li>
+            <li>✓ 3 re-analyses/prono</li>
+            <li class="disabled">✗ Sports premium (MMA, Rugby)</li>
+            <li>✓ Alertes en temps réel</li>
+          </ul>
+          <a href="pages/register.html?plan=starter" class="btn-plan">Commencer</a>
+        </div>
+        <!-- Pro (featured) -->
+        <div class="pricing-card featured reveal">
+          <div class="plan-badge">Populaire</div>
+          <div class="plan-name">Pro</div>
+          <div class="plan-price"><span class="price-num">20</span><span class="price-cur">€/mois</span></div>
+          <div class="plan-sub">10 pronostics par semaine</div>
+          <ul class="plan-features">
+            <li>✓ 10 pronos/semaine</li>
+            <li>✓ Tous les sports</li>
+            <li>✓ Analyse IA complète</li>
+            <li>✓ 3 re-analyses/prono</li>
+            <li>✓ Sports premium inclus</li>
+            <li>✓ Alertes en temps réel</li>
+          </ul>
+          <a href="pages/register.html?plan=pro" class="btn-plan featured">Commencer</a>
+        </div>
+        <!-- Expert -->
+        <div class="pricing-card reveal">
+          <div class="plan-name">Expert</div>
+          <div class="plan-price"><span class="price-num">50</span><span class="price-cur">€/mois</span></div>
+          <div class="plan-sub">30 pronostics par semaine</div>
+          <ul class="plan-features">
+            <li>✓ 30 pronos/semaine</li>
+            <li>✓ Tous les sports</li>
+            <li>✓ Analyse IA complète</li>
+            <li>✓ 3 re-analyses/prono</li>
+            <li>✓ Sports premium inclus</li>
+            <li>✓ Alertes temps réel</li>
+          </ul>
+          <a href="pages/register.html?plan=expert" class="btn-plan">Commencer</a>
+        </div>
+        <!-- Illimité -->
+        <div class="pricing-card reveal">
+          <div class="plan-badge">Elite</div>
+          <div class="plan-name">Illimité</div>
+          <div class="plan-price"><span class="price-num">100</span><span class="price-cur">€/mois</span></div>
+          <div class="plan-sub">Pronos illimités</div>
+          <ul class="plan-features">
+            <li>✓ Pronos illimités</li>
+            <li>✓ Tous les sports</li>
+            <li>✓ Analyse IA complète</li>
+            <li>✓ 3 re-analyses/prono</li>
+            <li>✓ Sports premium inclus</li>
+            <li>✓ Alertes temps réel</li>
+          </ul>
+          <a href="pages/register.html?plan=illimite" class="btn-plan">Commencer</a>
+        </div>
+        <!-- À l'unité -->
+        <div class="pricing-card unit reveal">
+          <div class="plan-name">À l'unité</div>
+          <div class="plan-price"><span class="price-num">5</span><span class="price-cur">€/prono</span></div>
+          <div class="plan-sub">Sans abonnement</div>
+          <ul class="plan-features">
+            <li>✓ Paiement unique</li>
+            <li>✓ Tous les sports</li>
+            <li>✓ Analyse IA complète</li>
+            <li>✓ 3 re-analyses incluses</li>
+          </ul>
+          <a href="pages/register.html?plan=unit" class="btn-plan">Acheter un prono</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- DISCLAIMER -->
+  <section class="disclaimer">
+    <div class="container">
+      <p>⚠️ Dubble Bet est un service d'analyse et de pronostics sportifs. Nous ne sommes pas un opérateur de paris. Jouez de manière responsable. Les performances passées ne garantissent pas les résultats futurs. Interdit aux mineurs de moins de 18 ans.</p>
+    </div>
+  </section>
+
+  <!-- FOOTER -->
+  <footer class="footer">
+    <div class="container footer-inner">
+      <div class="footer-logo">
+        <span class="logo-dubble">DUBBLE</span>
+        <span class="logo-bet">BET</span>
+        <p>AI Sports Predictions</p>
+      </div>
+      <div class="footer-links">
+        <div class="footer-col">
+          <h4>Produit</h4>
+          <a href="#comment">Comment ça marche</a>
+          <a href="#sports">Sports couverts</a>
+          <a href="#tarifs">Tarifs</a>
+          <a href="pages/dashboard.html">Dashboard</a>
+        </div>
+        <div class="footer-col">
+          <h4>Légal</h4>
+          <a href="#">Mentions légales</a>
+          <a href="#">CGU</a>
+          <a href="#">Politique de confidentialité</a>
+          <a href="#">Jeu responsable</a>
+        </div>
+        <div class="footer-col">
+          <h4>Contact</h4>
+          <a href="mailto:contact@dubblebet.fr">contact@dubblebet.fr</a>
+          <a href="#">Instagram</a>
+          <a href="#">TikTok</a>
+          <a href="#">Twitter / X</a>
+        </div>
+      </div>
+    </div>
+    <div class="footer-bottom">
+      <p>© 2026 Dubble Bet — Tous droits réservés</p>
+    </div>
+  </footer>
+
+  <script>
+    function toggleMenu() {
+      document.getElementById('mobileMenu').classList.toggle('open');
+    }
+
+    // Hero confidence bar animation
+    window.addEventListener('load', () => {
+      setTimeout(() => {
+        const bar = document.getElementById('heroBar');
+        if (bar) bar.style.width = '74%';
+      }, 600);
+    });
+
+    // Scroll reveal
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach(e => {
+        if (e.isIntersecting) e.target.classList.add('visible');
+      });
+    }, { threshold: 0.1 });
+
+    document.querySelectorAll('.reveal').forEach(el => observer.observe(el));
+  </script>
+</body>
+</html>
