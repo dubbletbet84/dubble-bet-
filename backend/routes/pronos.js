@@ -28,10 +28,17 @@ const ALT_LEAGUES = {
   boxe:       ['UFC'],
 };
 
+// ─── Helper : vérifie si une ligue a de VRAIS matchs (non-démo) ce jour ─
+async function hasRealMatches(sport, league, date) {
+  const fixtures = await apiSports.getFixtures({ sport, league, date });
+  return fixtures.length > 0 && !fixtures[0].isDemo;
+}
+
 // ─── Helper : analyser un lot de matchs et retourner le meilleur pick ─
 async function findBestPick(sport, league, date) {
   let fixtures = await apiSports.getFixtures({ sport, league, date });
-  if (!fixtures.length) fixtures = apiSports.getDemoFixtures(sport, league);
+  // Ne pas utiliser les démos ici — retourner null si aucun vrai match
+  if (!fixtures.length || fixtures[0].isDemo) return null;
 
   const enriched = await Promise.all(
     fixtures.slice(0, 3).map(async (fixture) => {
@@ -93,28 +100,30 @@ router.post('/generate', requireAuth, checkQuota, async (req, res) => {
 
   try {
     // 1. Chercher un pick valide pour la date/ligue demandée
-    let bestPick     = await findBestPick(sport, league, date);
-    let usedDate     = date;
-    let usedLeague   = league;
-    let suggestion   = null;
+    let bestPick   = await findBestPick(sport, league, date);
+    let usedLeague = league;
 
-    // 2. Si aucun pick valide → essayer les autres ligues du même sport (même jour)
+    // 2. Si aucun match réel dans la ligue demandée → trouver les ligues disponibles
     if (!bestPick) {
-      const alternatives = (ALT_LEAGUES[sport] || []).filter(l => l !== league);
-      for (const altLeague of alternatives) {
-        bestPick = await findBestPick(sport, altLeague, date);
-        if (bestPick) {
-          usedLeague = altLeague;
-          suggestion = `Aucun pari à valeur en ${league} ce jour — meilleur pick trouvé en ${altLeague}.`;
-          break;
-        }
-      }
-    }
+      const allLeagues    = ALT_LEAGUES[sport] || [];
+      const otherLeagues  = allLeagues.filter(l => l !== league);
 
-    // 4. Si vraiment rien partout → refus propre
-    if (!bestPick) {
-      return res.status(422).json({
-        error: 'Aucun pick à valeur trouvé pour cette date, les 2 prochains jours ni les ligues alternatives. Réessayez demain.',
+      // Vérifier en parallèle quelles ligues ont des matchs réels ce jour
+      const checks = await Promise.all(
+        otherLeagues.map(async l => ({
+          league: l,
+          hasMatch: await hasRealMatches(sport, l, date),
+        }))
+      );
+      const available = checks.filter(c => c.hasMatch).map(c => c.league);
+
+      // Retourner la liste des ligues disponibles pour que l'utilisateur choisisse
+      return res.status(200).json({
+        no_match:          true,
+        requested_league:  league,
+        date,
+        message:           `Pas de match ${league} le ${date}.`,
+        available_leagues: available,
       });
     }
 

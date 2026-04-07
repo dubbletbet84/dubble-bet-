@@ -722,6 +722,12 @@ button { cursor: pointer; font-family: var(--font-body); }
 .btn-reanalyze:hover { background: rgba(46,158,79,0.25); }
 .btn-reanalyze:disabled { opacity: 0.4; cursor: not-allowed; }
 .reanalysis-counter { font-size: 11px; color: rgba(255,255,255,0.3); margin-top: 8px; }
+.alt-league-btn {
+  background: rgba(46,158,79,0.1); border: 1px solid rgba(46,158,79,0.35);
+  border-radius: 99px; padding: 10px 20px; color: var(--green-light);
+  font-size: 14px; font-weight: 600; cursor: pointer; transition: all 0.2s;
+}
+.alt-league-btn:hover { background: rgba(46,158,79,0.25); border-color: var(--green); transform: translateY(-1px); }
 
 /* Loading spinner */
 .loading-overlay {

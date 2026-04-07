@@ -402,6 +402,12 @@
         overlay.classList.remove('show');
         document.getElementById('generateBtn').disabled = false;
 
+        // Pas de match dans la ligue demandée → afficher les alternatives
+        if (prono.no_match) {
+          showNoMatchPanel(prono);
+          return;
+        }
+
         currentProno   = prono;
         currentPronoId = prono.id;
         reanalyzeCount = 3;
@@ -414,6 +420,37 @@
         document.getElementById('generateBtn').disabled = false;
         showToast('Erreur lors de l\'analyse : ' + err.message, 'error');
       }
+    }
+
+    // ─── Pas de match → afficher les alternatives ────
+    function showNoMatchPanel({ requested_league, date, available_leagues }) {
+      const panel = document.getElementById('analysisResult');
+      if (!panel) return;
+      const formatted = new Date(date).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' });
+      const btns = (available_leagues || []).map(l =>
+        `<button class="alt-league-btn" onclick="selectAltLeague('${l}')">${l}</button>`
+      ).join('');
+      panel.innerHTML = `
+        <div style="text-align:center;padding:2rem">
+          <div style="font-size:2rem;margin-bottom:1rem">🔍</div>
+          <h3 style="color:#e2e8f0;margin-bottom:.5rem">Pas de match ${requested_league}</h3>
+          <p style="color:#94a3b8;margin-bottom:1.5rem">Aucun match trouvé le ${formatted} dans cette compétition.</p>
+          ${btns.length ? `
+            <p style="color:#94a3b8;margin-bottom:1rem">Disponible ce jour :</p>
+            <div style="display:flex;flex-wrap:wrap;gap:.5rem;justify-content:center">${btns}</div>
+          ` : `<p style="color:#64748b">Aucune autre ligue disponible ce jour.</p>`}
+        </div>`;
+      panel.style.display = 'block';
+    }
+
+    function selectAltLeague(league) {
+      const sel = document.getElementById('leagueSelect');
+      if (sel) {
+        for (const opt of sel.options) {
+          if (opt.text === league || opt.value === league) { sel.value = opt.value; break; }
+        }
+      }
+      document.getElementById('generateBtn')?.click();
     }
 
     // ─── Rendu du panneau d'analyse ───────────────────

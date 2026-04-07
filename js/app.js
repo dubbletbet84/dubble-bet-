@@ -236,7 +236,6 @@ async function callAPI(endpoint, options = {}) {
 
 // Génère un pronostic (appel backend ou données démo)
 async function generatePronostic({ sport, league, date, info = '' }) {
-  // Appel réel au backend
   const result = await callAPI('/pronos/generate', {
     method: 'POST',
     body: JSON.stringify({ sport, league, date, info }),
@@ -244,11 +243,12 @@ async function generatePronostic({ sport, league, date, info = '' }) {
 
   // Fallback données démo si backend non disponible
   if (!result) {
-    await new Promise(r => setTimeout(r, 1800)); // simulation délai IA
+    await new Promise(r => setTimeout(r, 1800));
     const demos = DEMO_PRONOSTICS.filter(p => p.sport === sport);
     const pick = demos.length ? demos[Math.floor(Math.random() * demos.length)] : DEMO_PRONOSTICS[0];
     return { ...pick, date, league, id: `demo_${Date.now()}` };
   }
+  // Retourner tel quel (y compris no_match: true avec available_leagues)
   return result;
 }
 
