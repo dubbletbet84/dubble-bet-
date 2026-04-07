@@ -50,17 +50,33 @@ function getClient(sport = 'football') {
 }
 
 // ─── Données de démonstration ────────────────────────
-// Utilisées si API_SPORTS_KEY est absent ou en développement
+// Utilisées si API_SPORTS_KEY est absent — équipes réalistes par ligue
+const DEMO_FIXTURES = {
+  'Ligue 1':          [{ home: { id: 85, name: 'Paris Saint-Germain' }, away: { id: 80, name: 'Monaco' },          venue: 'Parc des Princes' }],
+  'Premier League':   [{ home: { id: 40, name: 'Liverpool' },           away: { id: 42, name: 'Arsenal' },         venue: 'Anfield' }],
+  'La Liga':          [{ home: { id: 541, name: 'Real Madrid' },        away: { id: 529, name: 'Barcelona' },      venue: 'Santiago Bernabéu' }],
+  'Bundesliga':       [{ home: { id: 157, name: 'Bayern Munich' },      away: { id: 165, name: 'Borussia Dortmund' }, venue: 'Allianz Arena' }],
+  'Serie A':          [{ home: { id: 489, name: 'Inter Milan' },        away: { id: 496, name: 'Juventus' },       venue: 'Giuseppe Meazza' }],
+  'Champions League': [{ home: { id: 85, name: 'Paris Saint-Germain' }, away: { id: 541, name: 'Real Madrid' },    venue: 'Parc des Princes' }],
+  'ATP Tour':         [{ home: { id: 1,   name: 'Novak Djokovic' },     away: { id: 2,   name: 'Carlos Alcaraz' }, venue: 'Court Central' }],
+  'NBA':              [{ home: { id: 12,  name: 'Los Angeles Lakers' }, away: { id: 11,  name: 'Golden State Warriors' }, venue: 'Crypto.com Arena' }],
+  'Euroleague':       [{ home: { id: 120, name: 'Real Madrid' },        away: { id: 121, name: 'CSKA Moscou' },    venue: 'WiZink Center' }],
+  'Top 14':           [{ home: { id: 1,   name: 'Toulouse' },           away: { id: 2,   name: 'La Rochelle' },    venue: 'Stade Ernest-Wallon' }],
+  'UFC':              [{ home: { id: 1,   name: 'Israel Adesanya' },    away: { id: 2,   name: 'Alex Pereira' },   venue: 'T-Mobile Arena' }],
+};
+
 function getDemoFixtures(sport, league) {
+  const entry = (DEMO_FIXTURES[league] || DEMO_FIXTURES['Ligue 1'])[0];
   return [
     {
-      id: `demo_${Date.now()}`,
+      id:       `demo_${league}_${Date.now()}`,
+      isDemo:   true,
       sport,
       league,
-      homeTeam: { id: 85,  name: 'Paris Saint-Germain', logo: '' },
-      awayTeam: { id: 80,  name: 'Lyon',                 logo: '' },
+      homeTeam: { id: entry.home.id, name: entry.home.name, logo: '' },
+      awayTeam: { id: entry.away.id, name: entry.away.name, logo: '' },
       date:     new Date().toISOString(),
-      venue:    'Parc des Princes',
+      venue:    entry.venue,
     },
   ];
 }
