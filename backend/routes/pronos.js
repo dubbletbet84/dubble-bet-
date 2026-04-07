@@ -102,6 +102,7 @@ router.post('/generate', requireAuth, checkQuota, async (req, res) => {
     // 1. Chercher un pick valide pour la date/ligue demandée
     let bestPick   = await findBestPick(sport, league, date);
     let usedLeague = league;
+    let usedDate   = date;
 
     // 2. Si aucun match réel dans la ligue demandée → trouver les ligues disponibles
     if (!bestPick) {
