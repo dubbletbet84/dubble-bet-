@@ -241,12 +241,9 @@ async function generatePronostic({ sport, league, date, info = '' }) {
     body: JSON.stringify({ sport, league, date, info }),
   });
 
-  // Fallback données démo si backend non disponible
+  // Backend inaccessible → erreur claire (pas de faux résultats)
   if (!result) {
-    await new Promise(r => setTimeout(r, 1800));
-    const demos = DEMO_PRONOSTICS.filter(p => p.sport === sport);
-    const pick = demos.length ? demos[Math.floor(Math.random() * demos.length)] : DEMO_PRONOSTICS[0];
-    return { ...pick, date, league, id: `demo_${Date.now()}` };
+    throw new Error('Le serveur est temporairement indisponible. Réessayez dans quelques instants.');
   }
   // Pas de match → lancer une erreur claire avec les alternatives
   if (result.no_match) {
