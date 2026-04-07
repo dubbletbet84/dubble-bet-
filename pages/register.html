@@ -169,11 +169,12 @@
       } catch { return false; }
     }
 
-    // Redirige si déjà connecté (silencieux si Supabase non configuré)
+    // Redirige si déjà connecté SAUF si l'utilisateur vient choisir un plan
     (async () => {
       try {
+        const hasPlanParam = new URLSearchParams(window.location.search).get('plan');
         const session = await window.DB.getSession();
-        if (session) window.location.href = 'dashboard.html';
+        if (session && !hasPlanParam) window.location.href = 'dashboard.html';
       } catch { /* Supabase non configuré — mode démo */ }
     })();
 
