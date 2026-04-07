@@ -34,11 +34,11 @@ async function createCheckoutSession({
     metadata: { plan },
     success_url: successUrl + '&session_id={CHECKOUT_SESSION_ID}',
     cancel_url:  cancelUrl,
-    // Stripe Billing — activer le portail client
     billing_address_collection: 'auto',
-    // Conformité européenne (SCA)
     payment_method_types: ['card'],
     locale: 'fr',
+    // Activer la saisie de code promo dans le Checkout Stripe
+    allow_promotion_codes: true,
   });
 
   return session;
