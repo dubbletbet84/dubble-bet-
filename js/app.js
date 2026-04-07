@@ -248,7 +248,18 @@ async function generatePronostic({ sport, league, date, info = '' }) {
     const pick = demos.length ? demos[Math.floor(Math.random() * demos.length)] : DEMO_PRONOSTICS[0];
     return { ...pick, date, league, id: `demo_${Date.now()}` };
   }
-  // Retourner tel quel (y compris no_match: true avec available_leagues)
+  // Pas de match → lancer une erreur claire avec les alternatives
+  if (result.no_match) {
+    const alts = (result.available_leagues || []).join(', ');
+    const msg  = `Pas de match ${result.requested_league} à la date sélectionnée.`
+               + (alts ? ` Disponible : ${alts}.` : '');
+    const err  = new Error(msg);
+    err.no_match           = true;
+    err.available_leagues  = result.available_leagues || [];
+    err.requested_league   = result.requested_league;
+    err.date               = result.date;
+    throw err;
+  }
   return result;
 }
 

@@ -418,7 +418,12 @@
         clearInterval(interval);
         overlay.classList.remove('show');
         document.getElementById('generateBtn').disabled = false;
-        showToast('Erreur lors de l\'analyse : ' + err.message, 'error');
+        if (err.no_match) {
+          showNoMatchPanel({ requested_league: err.requested_league, date: err.date, available_leagues: err.available_leagues });
+          showToast(err.message, 'error');
+        } else {
+          showToast('Erreur lors de l\'analyse : ' + err.message, 'error');
+        }
       }
     }
 
