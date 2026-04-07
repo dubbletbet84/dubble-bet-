@@ -277,36 +277,56 @@
       loadUserStats(session.user.id);
     });
 
-    function loadUserProfile(user) {
+    async function loadUserProfile(user) {
       const email = user.email || '';
-      const name  = user.user_metadata?.full_name || email.split('@')[0] || 'Utilisateur';
-      const plan  = user.user_metadata?.plan || 'pro';
+      let name  = user.user_metadata?.full_name || email.split('@')[0] || 'Utilisateur';
+      let plan  = 'pro';
       const planLabel = { starter:'Starter', pro:'Plan Pro', expert:'Expert', illimite:'Illimité', unit:'À l\'unité' };
 
-      document.getElementById('userName').textContent  = name;
-      document.getElementById('userPlan').textContent  = planLabel[plan] || 'Plan Pro';
+      // Fetch profil réel depuis le backend
+      try {
+        const me = await window.App.callAPI('/auth/me');
+        if (me?.profile?.plan) plan = me.profile.plan;
+        if (me?.user?.name)    name = me.user.name;
+      } catch (e) { /* fallback silencieux */ }
+
+      document.getElementById('userName').textContent   = name;
+      document.getElementById('userPlan').textContent   = planLabel[plan] || 'Plan Pro';
       document.getElementById('userAvatar').textContent = name.charAt(0).toUpperCase();
+      return plan;
     }
 
     async function loadUserStats(userId) {
-      // Données démo — remplacer par appels Supabase réels
-      const pronos   = window.App.DEMO_PRONOSTICS;
-      const finished = pronos.filter(p => p.result !== 'pending');
-      const wins     = finished.filter(p => p.result === 'win');
-      const winRate  = finished.length ? Math.round(wins.length / finished.length * 100) : 0;
-      const avgValue = pronos.reduce((s, p) => s + p.value, 0) / pronos.length;
+      // Fetch depuis backend (quota réel + pronos réels)
+      try {
+        const [me, pronos] = await Promise.all([
+          window.App.callAPI('/auth/me'),
+          window.App.callAPI('/pronos'),
+        ]);
 
-      const quota    = { starter: 5, pro: 10, expert: 30, illimite: 999, unit: 1 };
-      const planKey  = 'pro'; // TODO: lire depuis le profil Supabase
-      const max      = quota[planKey];
-      const used     = Math.min(pronos.length, max);
-      const remaining = Math.max(0, max - used);
+        const pronoList = pronos || window.App.DEMO_PRONOSTICS;
+        const finished  = pronoList.filter(p => p.result !== 'pending');
+        const wins      = finished.filter(p => p.result === 'win');
+        const winRate   = finished.length ? Math.round(wins.length / finished.length * 100) : 0;
+        const avgValue  = pronoList.length ? pronoList.reduce((s, p) => s + (p.value || 0), 0) / pronoList.length : 0;
 
-      document.getElementById('statTotal').textContent     = used;
-      document.getElementById('statWinRate').textContent   = winRate + '%';
-      document.getElementById('statValue').textContent     = '+' + avgValue.toFixed(1) + '%';
-      document.getElementById('statRemaining').textContent = remaining === 999 ? '∞' : remaining;
-      document.getElementById('quotaFill').style.width = max === 999 ? '30%' : (used / max * 100) + '%';
+        const quota   = me?.quota;
+        const used    = quota?.used    ?? pronoList.length;
+        const max     = quota?.max     ?? 10;
+        const remaining = quota?.remaining ?? Math.max(0, max - used);
+
+        document.getElementById('statTotal').textContent     = used;
+        document.getElementById('statWinRate').textContent   = winRate + '%';
+        document.getElementById('statValue').textContent     = '+' + avgValue.toFixed(1) + '%';
+        document.getElementById('statRemaining').textContent = max === -1 ? '∞' : remaining;
+        document.getElementById('quotaFill').style.width     = max === -1 ? '30%' : Math.min(100, used / max * 100) + '%';
+      } catch (e) {
+        // Fallback démo si API indisponible
+        document.getElementById('statTotal').textContent     = '—';
+        document.getElementById('statWinRate').textContent   = '—';
+        document.getElementById('statValue').textContent     = '—';
+        document.getElementById('statRemaining').textContent = '—';
+      }
     }
 
     // ─── Sélection sport dans sidebar ─────────────────
@@ -364,12 +384,6 @@
         reanalyzeCount = 3;
         renderAnalysis(prono);
 
-        // Sauvegarder en base
-        try {
-          const session = await window.DB.getSession();
-          if (session) await window.DB.savePronostic({ ...prono, user_id: session.user.id, created_at: new Date().toISOString() });
-        } catch (e) { /* mode démo */ }
-
         showToast('Analyse générée avec succès !', 'success');
       } catch (err) {
         clearInterval(interval);
@@ -409,10 +423,11 @@
         document.getElementById('avgCote').textContent = prono.cote_marche.toFixed(2);
       }
 
-      // Stats équipes
+      // Stats équipes (backend retourne team_stats, démo retourne teamStats)
       const tsEl = document.getElementById('teamStatsContent');
-      if (prono.teamStats) {
-        const { home, away } = prono.teamStats;
+      const teamStats = prono.team_stats || prono.teamStats;
+      if (teamStats) {
+        const { home, away } = teamStats;
         const rows = [
           ['Forme récente', home.form || '—', away.form || '—'],
           ['Buts / match',  home.goals || '—', away.goals || '—'],

@@ -23,6 +23,7 @@ const supabase = createClient(
 const PRICE_MAP = {
   starter:  process.env.STRIPE_PRICE_STARTER,
   pro:      process.env.STRIPE_PRICE_PRO,
+  expert:   process.env.STRIPE_PRICE_EXPERT,
   illimite: process.env.STRIPE_PRICE_ILLIMITE,
   unit:     process.env.STRIPE_PRICE_UNIT,
 };
@@ -110,7 +111,6 @@ router.post('/webhook', async (req, res) => {
             plan,
             stripe_customer_id:     session.customer,
             stripe_subscription_id: session.subscription,
-            plan_active:            true,
             updated_at:             new Date().toISOString(),
           })
           .eq('email', email);
@@ -124,7 +124,7 @@ router.post('/webhook', async (req, res) => {
         const invoice = event.data.object;
         await supabase
           .from('profiles')
-          .update({ plan_active: true, updated_at: new Date().toISOString() })
+          .update({ updated_at: new Date().toISOString() })
           .eq('stripe_customer_id', invoice.customer);
         break;
       }
@@ -134,7 +134,7 @@ router.post('/webhook', async (req, res) => {
         const invoice = event.data.object;
         await supabase
           .from('profiles')
-          .update({ plan_active: false, updated_at: new Date().toISOString() })
+          .update({ plan: null, updated_at: new Date().toISOString() })
           .eq('stripe_customer_id', invoice.customer);
         console.warn(`⚠️ Paiement échoué pour customer : ${invoice.customer}`);
         break;
@@ -145,7 +145,7 @@ router.post('/webhook', async (req, res) => {
         const sub = event.data.object;
         await supabase
           .from('profiles')
-          .update({ plan: null, plan_active: false, updated_at: new Date().toISOString() })
+          .update({ plan: null, updated_at: new Date().toISOString() })
           .eq('stripe_customer_id', sub.customer);
         break;
       }
@@ -172,7 +172,7 @@ router.get('/status', requireAuth, async (req, res) => {
 
   res.json({
     plan:        profile?.plan || null,
-    active:      profile?.plan_active || false,
+    active:      !!profile?.plan,
     hasCustomer: !!profile?.stripe_customer_id,
   });
 });

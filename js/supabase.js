@@ -64,7 +64,9 @@ async function signOut() {
   const client = initSupabase();
   if (!client) return;
   await client.auth.signOut();
-  window.location.href = '/index.html';
+  // Chemin relatif compatible Netlify
+  const depth = window.location.pathname.split('/').length - 2;
+  window.location.href = depth > 0 ? '../'.repeat(depth) + 'index.html' : 'index.html';
 }
 
 async function getSession() {

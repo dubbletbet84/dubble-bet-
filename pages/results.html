@@ -156,12 +156,19 @@
       renderList();
     });
 
-    function loadUserProfile(user) {
-      const name = user.user_metadata?.full_name || user.email?.split('@')[0] || 'Utilisateur';
-      const plan = user.user_metadata?.plan || 'pro';
-      const planLabel = { starter:'Starter', pro:'Plan Pro', illimite:'Illimité', unit:'À l\'unité' };
-      document.getElementById('userName').textContent  = name;
-      document.getElementById('userPlan').textContent  = planLabel[plan] || 'Plan Pro';
+    async function loadUserProfile(user) {
+      let name = user.user_metadata?.full_name || user.email?.split('@')[0] || 'Utilisateur';
+      let plan = 'pro';
+      const planLabel = { starter:'Starter', pro:'Plan Pro', expert:'Expert', illimite:'Illimité', unit:'À l\'unité' };
+
+      try {
+        const me = await window.App.callAPI('/auth/me');
+        if (me?.profile?.plan) plan = me.profile.plan;
+        if (me?.user?.name)    name = me.user.name;
+      } catch (e) { /* fallback silencieux */ }
+
+      document.getElementById('userName').textContent   = name;
+      document.getElementById('userPlan').textContent   = planLabel[plan] || 'Plan Pro';
       document.getElementById('userAvatar').textContent = name.charAt(0).toUpperCase();
     }
 
