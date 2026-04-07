@@ -266,19 +266,26 @@
       // Auth guard
       const session = await window.DB.getSession();
 
-      // Si pas de session mais paiement réussi → l'utilisateur doit confirmer son email
       const params = new URLSearchParams(window.location.search);
-      const pendingEmail = sessionStorage.getItem('pending_confirm_email');
-      if (!session && params.get('payment') === 'success' && pendingEmail) {
-        sessionStorage.removeItem('pending_confirm_email');
-        showToast(`✅ Paiement confirmé ! Vérifiez votre email (${pendingEmail}) pour activer votre compte.`, 'success', 8000);
-        setTimeout(() => { window.location.href = 'login.html'; }, 5000);
+
+      // Si pas de session après paiement → email à confirmer
+      if (!session && params.get('payment') === 'success') {
+        document.body.innerHTML = `
+          <div style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:#0a0a0a;font-family:'Barlow',sans-serif;">
+            <div style="text-align:center;padding:48px;background:#111;border:1px solid rgba(46,158,79,0.3);border-radius:24px;max-width:480px;">
+              <div style="font-size:56px;margin-bottom:24px;">✅</div>
+              <h1 style="font-family:'Bebas Neue',sans-serif;color:#2E9E4F;font-size:32px;letter-spacing:2px;margin-bottom:12px;">PAIEMENT CONFIRMÉ</h1>
+              <p style="color:rgba(255,255,255,0.6);margin-bottom:8px;">Votre compte a bien été créé.</p>
+              <p style="color:rgba(255,255,255,0.6);margin-bottom:32px;">Vérifiez votre boîte mail et cliquez sur le lien de confirmation pour activer votre accès.</p>
+              <a href="login.html" style="display:inline-block;background:#2E9E4F;color:#fff;padding:14px 32px;border-radius:10px;text-decoration:none;font-weight:600;">Se connecter</a>
+            </div>
+          </div>`;
         return;
       }
 
       if (!session) { window.location.href = 'login.html'; return; }
 
-      // Message de bienvenue après paiement
+      // Message de bienvenue après paiement (déjà connecté)
       if (params.get('payment') === 'success') {
         showToast('🎉 Paiement confirmé ! Bienvenue sur Dubble Bet.', 'success', 5000);
       }
