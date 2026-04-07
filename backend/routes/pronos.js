@@ -136,8 +136,7 @@ router.post('/generate', requireAuth, checkQuota, async (req, res) => {
       factors:     bestPick.factors,
       result:      'pending',
       reanalyze_count: 0,
-      extra_info:  info || null,
-      suggestion,
+      extra_info:  suggestion ? `[${suggestion}] ${info || ''}`.trim() : (info || null),
       created_at:  new Date().toISOString(),
     };
 
