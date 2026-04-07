@@ -132,7 +132,7 @@ router.post('/generate', requireAuth, checkQuota, async (req, res) => {
       value:       bestPick.value,
       bookmakers:  bestPick.bookmakers,
       injuries:    bestPick.injuries,
-      team_stats:  bestPick.teamStats,
+      team_stats:  bestPick.team_stats || null,
       factors:     bestPick.factors,
       result:      'pending',
       reanalyze_count: 0,
