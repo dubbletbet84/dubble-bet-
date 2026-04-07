@@ -24,7 +24,7 @@ app.use(helmet());
 const allowedOrigins = [
   'http://localhost:5500',
   'http://127.0.0.1:5500',
-  'https://dubblebet.netlify.app',
+  'https://dubbletbet84.github.io',
 ];
 app.use(cors({
   origin: (origin, cb) => {
