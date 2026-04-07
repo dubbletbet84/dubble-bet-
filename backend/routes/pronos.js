@@ -18,6 +18,45 @@ const supabase = createClient(
 // Quotas par plan
 const PLAN_QUOTAS = { starter: 5, pro: 10, expert: 30, illimite: Infinity, unit: 1 };
 
+// Ligues alternatives par sport (pour suggestion si cote trop risquée)
+const ALT_LEAGUES = {
+  football:   ['Premier League', 'La Liga', 'Bundesliga', 'Serie A', 'Ligue 1', 'Champions League'],
+  tennis:     ['ATP Tour'],
+  basketball: ['NBA', 'Euroleague'],
+  rugby:      ['Top 14'],
+  mma:        ['UFC'],
+  boxe:       ['UFC'],
+};
+
+// ─── Helper : analyser un lot de matchs et retourner le meilleur pick ─
+async function findBestPick(sport, league, date) {
+  let fixtures = await apiSports.getFixtures({ sport, league, date });
+  if (!fixtures.length) fixtures = apiSports.getDemoFixtures(sport, league);
+
+  const enriched = await Promise.all(
+    fixtures.slice(0, 3).map(async (fixture) => {
+      const [stats, injuries, odds] = await Promise.all([
+        apiSports.getTeamStats(fixture),
+        apiSports.getInjuries(fixture),
+        apiSports.getOdds(fixture),
+      ]);
+      return { ...fixture, stats, injuries, odds };
+    })
+  );
+
+  const predictions = await Promise.all(enriched.map(f => prediction.predict(f)));
+  const validPicks  = predictions.filter(p => p.cote_marche >= 1.90);
+  if (!validPicks.length) return null;
+  return validPicks.sort((a, b) => b.value - a.value)[0];
+}
+
+// ─── Helper : ajouter N jours à une date ISO (YYYY-MM-DD) ─
+function addDays(dateStr, n) {
+  const d = new Date(dateStr);
+  d.setDate(d.getDate() + n);
+  return d.toISOString().slice(0, 10);
+}
+
 // ─── Middleware : vérifier quota ─────────────────────
 async function checkQuota(req, res, next) {
   const weekStart = new Date();
@@ -60,46 +99,51 @@ router.post('/generate', requireAuth, checkQuota, async (req, res) => {
   }
 
   try {
-    // 1. Récupérer les matchs du jour via API-Sports (avec fallback démo si vide)
-    let fixtures = await apiSports.getFixtures({ sport, league, date });
-    if (!fixtures.length) {
-      fixtures = apiSports.getDemoFixtures(sport, league);
+    // 1. Chercher un pick valide pour la date/ligue demandée
+    let bestPick     = await findBestPick(sport, league, date);
+    let usedDate     = date;
+    let usedLeague   = league;
+    let suggestion   = null;
+
+    // 2. Si aucun pick valide → chercher les 2 prochains jours (même ligue)
+    if (!bestPick) {
+      for (const offset of [1, 2]) {
+        const nextDate = addDays(date, offset);
+        bestPick = await findBestPick(sport, league, nextDate);
+        if (bestPick) {
+          usedDate   = nextDate;
+          suggestion = `Aucun pari à valeur le ${date} — meilleur pick trouvé le ${nextDate} (même ligue).`;
+          break;
+        }
+      }
     }
 
-    // 2. Récupérer stats, blessés, cotes pour chaque match
-    const enrichedFixtures = await Promise.all(
-      fixtures.slice(0, 3).map(async (fixture) => {
-        const [stats, injuries, odds] = await Promise.all([
-          apiSports.getTeamStats(fixture),
-          apiSports.getInjuries(fixture),
-          apiSports.getOdds(fixture),
-        ]);
-        return { ...fixture, stats, injuries, odds };
-      })
-    );
+    // 3. Si toujours rien → essayer les autres ligues du même sport (date d'origine)
+    if (!bestPick) {
+      const alternatives = (ALT_LEAGUES[sport] || []).filter(l => l !== league);
+      for (const altLeague of alternatives) {
+        bestPick = await findBestPick(sport, altLeague, date);
+        if (bestPick) {
+          usedLeague = altLeague;
+          suggestion = `Aucun pari à valeur en ${league} — meilleur pick trouvé en ${altLeague}.`;
+          break;
+        }
+      }
+    }
 
-    // 3. Appeler le modèle ML (Flask Python)
-    const predictions = await Promise.all(
-      enrichedFixtures.map(f => prediction.predict(f))
-    );
-
-    // 4. Filtrer : cote >= 1.90 uniquement
-    const validPicks = predictions.filter(p => p.cote_marche >= 1.90);
-    if (!validPicks.length) {
-      return res.status(204).json({
-        message: 'Aucun pick à valeur suffisante trouvé (cote < 1.90). Essayez une autre date ou ligue.',
+    // 4. Si vraiment rien partout → refus propre
+    if (!bestPick) {
+      return res.status(422).json({
+        error: 'Aucun pick à valeur trouvé pour cette date, les 2 prochains jours ni les ligues alternatives. Réessayez demain.',
       });
     }
-
-    // Prendre le meilleur pick (plus haute value)
-    const bestPick = validPicks.sort((a, b) => b.value - a.value)[0];
 
     // 5. Sauvegarder en base
     const pronoData = {
       user_id:     req.user.id,
       sport,
-      league,
-      date,
+      league:      usedLeague,
+      date:        usedDate,
       match:       bestPick.match,
       pick:        bestPick.pick,
       cote_ia:     bestPick.cote_ia,
@@ -113,6 +157,7 @@ router.post('/generate', requireAuth, checkQuota, async (req, res) => {
       result:      'pending',
       reanalyze_count: 0,
       extra_info:  info || null,
+      suggestion,
       created_at:  new Date().toISOString(),
     };
 
