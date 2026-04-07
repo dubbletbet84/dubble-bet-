@@ -85,7 +85,7 @@ app.use((err, req, res, next) => {
 
 // ─── Démarrage ───────────────────────────────────────
 app.listen(PORT, () => {
-  console.log(`✅ Dubble Bet API démarrée sur http://localhost:${PORT}`);
+  console.log(`✅ Dubble Bet API démarrée sur le port ${PORT} (env: ${process.env.NODE_ENV || 'development'})`);
   console.log(`   NODE_ENV : ${process.env.NODE_ENV || 'development'}`);
 });
 
