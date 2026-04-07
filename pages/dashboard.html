@@ -150,6 +150,14 @@
         <div class="loading-text" id="loadingText">L'IA analyse les données...</div>
       </div>
 
+      <!-- Panneau : pas de match disponible -->
+      <div id="noMatchPanel" style="display:none;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:16px;padding:2rem;text-align:center;margin-bottom:1rem">
+        <div style="font-size:2rem;margin-bottom:1rem">🔍</div>
+        <h3 id="noMatchTitle" style="color:#e2e8f0;margin-bottom:.5rem"></h3>
+        <p id="noMatchSub" style="color:#94a3b8;margin-bottom:1.5rem"></p>
+        <div id="noMatchLeagues" style="display:flex;flex-wrap:wrap;gap:.5rem;justify-content:center"></div>
+      </div>
+
       <!-- Panneau d'analyse -->
       <div class="analysis-panel" id="analysisPanel">
 
@@ -429,23 +437,18 @@
 
     // ─── Pas de match → afficher les alternatives ────
     function showNoMatchPanel({ requested_league, date, available_leagues }) {
-      const panel = document.getElementById('analysisResult');
+      const panel = document.getElementById('noMatchPanel');
       if (!panel) return;
       const formatted = new Date(date).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' });
-      const btns = (available_leagues || []).map(l =>
-        `<button class="alt-league-btn" onclick="selectAltLeague('${l}')">${l}</button>`
-      ).join('');
-      panel.innerHTML = `
-        <div style="text-align:center;padding:2rem">
-          <div style="font-size:2rem;margin-bottom:1rem">🔍</div>
-          <h3 style="color:#e2e8f0;margin-bottom:.5rem">Pas de match ${requested_league}</h3>
-          <p style="color:#94a3b8;margin-bottom:1.5rem">Aucun match trouvé le ${formatted} dans cette compétition.</p>
-          ${btns.length ? `
-            <p style="color:#94a3b8;margin-bottom:1rem">Disponible ce jour :</p>
-            <div style="display:flex;flex-wrap:wrap;gap:.5rem;justify-content:center">${btns}</div>
-          ` : `<p style="color:#64748b">Aucune autre ligue disponible ce jour.</p>`}
-        </div>`;
+      document.getElementById('noMatchTitle').textContent = `Pas de match ${requested_league} le ${formatted}`;
+      document.getElementById('noMatchSub').textContent   = available_leagues?.length
+        ? 'Ces compétitions ont des matchs ce jour :'
+        : 'Aucune autre compétition disponible ce jour.';
+      document.getElementById('noMatchLeagues').innerHTML = (available_leagues || [])
+        .map(l => `<button class="alt-league-btn" onclick="selectAltLeague('${l}')">${l}</button>`)
+        .join('');
       panel.style.display = 'block';
+      document.getElementById('analysisPanel').style.display = 'none';
     }
 
     function selectAltLeague(league) {
@@ -460,6 +463,8 @@
 
     // ─── Rendu du panneau d'analyse ───────────────────
     function renderAnalysis(prono) {
+      document.getElementById('noMatchPanel').style.display  = 'none';
+      document.getElementById('analysisPanel').style.display = 'block';
       const sportEmojis = { football:'⚽', tennis:'🎾', basketball:'🏀', mma:'🥊', rugby:'🏉', boxe:'🥊' };
 
       document.getElementById('resultSport').textContent  = `${sportEmojis[prono.sport] || '🏅'} ${prono.league.toUpperCase()}`;
