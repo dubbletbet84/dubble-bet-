@@ -247,46 +247,42 @@ router.patch('/:id/result', requireAuth, async (req, res) => {
 });
 
 // ─── GET /api/pronos/debug-api ───────────────────────
-// Teste la connexion API-Sports sur plusieurs ligues/dates
+// Teste football-data.org sur plusieurs ligues/dates
 router.get('/debug-api', async (req, res) => {
-  const axios  = require('axios');
-  const key    = process.env.API_SPORTS_KEY;
-  if (!key) return res.json({ error: 'API_SPORTS_KEY manquante dans Railway' });
-
+  const axios    = require('axios');
+  const key      = process.env.FOOTBALL_DATA_KEY;
   const today    = new Date().toISOString().slice(0, 10);
   const tomorrow = new Date(Date.now() + 86400000).toISOString().slice(0, 10);
 
+  if (!key) return res.json({ error: 'FOOTBALL_DATA_KEY manquante dans Railway', today, tomorrow });
+
   const checks = [
-    { label: 'Ligue 1 aujourd\'hui (s2025)',          league: 61,  date: today,    season: 2025 },
-    { label: 'Champions League aujourd\'hui (s2025)', league: 2,   date: today,    season: 2025 },
-    { label: 'Champions League demain (s2025)',       league: 2,   date: tomorrow, season: 2025 },
-    { label: 'Premier League aujourd\'hui (s2025)',   league: 39,  date: today,    season: 2025 },
-    { label: 'Premier League demain (s2025)',         league: 39,  date: tomorrow, season: 2025 },
+    { label: 'Champions League aujourd\'hui', comp: 'CL',  date: today },
+    { label: 'Champions League demain',       comp: 'CL',  date: tomorrow },
+    { label: 'Premier League aujourd\'hui',   comp: 'PL',  date: today },
+    { label: 'Premier League demain',         comp: 'PL',  date: tomorrow },
+    { label: 'Ligue 1 aujourd\'hui',          comp: 'FL1', date: today },
   ];
 
   const results = [];
   for (const c of checks) {
     try {
-      const { data } = await axios.get('https://v3.football.api-sports.io/fixtures', {
-        headers: { 'x-apisports-key': key, 'x-apisports-host': 'v3.football.api-sports.io' },
-        params:  { date: c.date, league: c.league, season: c.season },
+      const { data } = await axios.get(`https://api.football-data.org/v4/competitions/${c.comp}/matches`, {
+        headers: { 'X-Auth-Token': key },
+        params:  { dateFrom: c.date, dateTo: c.date, status: 'SCHEDULED,TIMED' },
         timeout: 8000,
       });
       results.push({
         label:   c.label,
-        date:    c.date,
-        count:   data.results,
-        errors:  data.errors,
-        matches: (data.response || []).slice(0, 2).map(f =>
-          `${f.teams.home.name} vs ${f.teams.away.name} (${f.fixture.status.short})`
-        ),
+        count:   data.matches?.length || 0,
+        matches: (data.matches || []).slice(0, 3).map(m => `${m.homeTeam.name} vs ${m.awayTeam.name}`),
       });
     } catch (err) {
-      results.push({ label: c.label, error: err.message });
+      results.push({ label: c.label, error: err.response?.data?.message || err.message });
     }
   }
 
-  res.json({ key_prefix: key.slice(0, 8) + '...', results });
+  res.json({ key_present: true, key_prefix: key.slice(0, 8) + '...', today, tomorrow, results });
 });
 
 module.exports = router;

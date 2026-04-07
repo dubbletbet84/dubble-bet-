@@ -1,84 +1,64 @@
 // ===================================================
-// SERVICE : API-Sports (api-sports.io)
-// Doc : https://api-sports.io/documentation
-// ===================================================
-// TODO: Insérez votre clé API dans le .env :
-//   API_SPORTS_KEY=votre_cle_api_sports
+// SERVICE : football-data.org (gratuit, matchs en cours)
+// Doc : https://www.football-data.org/documentation/quickstart
+// Variable Railway : FOOTBALL_DATA_KEY=votre_cle
 // ===================================================
 
 const axios = require('axios');
 
-const BASE_URL = 'https://v3.football.api-sports.io'; // Football
-// Autres endpoints selon le sport :
-// Tennis    : https://v1.tennis.api-sports.io
-// Basketball: https://v1.basketball.api-sports.io
-// MMA       : https://v1.mma.api-sports.io
-// Rugby     : https://v1.rugby.api-sports.io
-
-const SPORT_BASES = {
-  football:   'https://v3.football.api-sports.io',
-  tennis:     'https://v1.tennis.api-sports.io',
-  basketball: 'https://v1.basketball.api-sports.io',
-  mma:        'https://v1.mma.api-sports.io',
-  rugby:      'https://v1.rugby.api-sports.io',
-  boxe:       'https://v1.boxing.api-sports.io',
-};
-
+// IDs des compétitions sur football-data.org
 const LEAGUE_IDS = {
-  'Ligue 1':          61,
-  'Premier League':   39,
-  'La Liga':          140,
-  'Bundesliga':       78,
-  'Serie A':          135,
-  'Champions League': 2,
-  'ATP Tour':         1,
-  'NBA':              12,
-  'Euroleague':       120,
-  'Top 14':           1,
-  'UFC':              1,
+  'Premier League':   'PL',
+  'La Liga':          'PD',
+  'Bundesliga':       'BL1',
+  'Serie A':          'SA',
+  'Ligue 1':          'FL1',
+  'Champions League': 'CL',
+  'Eredivisie':       'DED',
+  'Primeira Liga':    'PPL',
+  // Sports non-football → pas couverts par football-data.org, démo uniquement
+  'ATP Tour':         null,
+  'NBA':              null,
+  'Euroleague':       null,
+  'Top 14':           null,
+  'UFC':              null,
 };
 
-function getClient(sport = 'football') {
+function getClient() {
   return axios.create({
-    baseURL: SPORT_BASES[sport] || BASE_URL,
-    headers: {
-      'x-apisports-key': process.env.API_SPORTS_KEY,
-      'x-apisports-host': `v${sport === 'football' ? 3 : 1}.${sport}.api-sports.io`,
-    },
+    baseURL: 'https://api.football-data.org/v4',
+    headers: { 'X-Auth-Token': process.env.FOOTBALL_DATA_KEY || '' },
     timeout: 8000,
   });
 }
 
 // ─── Données de démonstration ────────────────────────
-// Utilisées si API_SPORTS_KEY est absent — équipes réalistes par ligue
 const DEMO_FIXTURES = {
-  'Ligue 1':          [{ home: { id: 85, name: 'Paris Saint-Germain' }, away: { id: 80, name: 'Monaco' },          venue: 'Parc des Princes' }],
-  'Premier League':   [{ home: { id: 40, name: 'Liverpool' },           away: { id: 42, name: 'Arsenal' },         venue: 'Anfield' }],
-  'La Liga':          [{ home: { id: 541, name: 'Real Madrid' },        away: { id: 529, name: 'Barcelona' },      venue: 'Santiago Bernabéu' }],
-  'Bundesliga':       [{ home: { id: 157, name: 'Bayern Munich' },      away: { id: 165, name: 'Borussia Dortmund' }, venue: 'Allianz Arena' }],
-  'Serie A':          [{ home: { id: 489, name: 'Inter Milan' },        away: { id: 496, name: 'Juventus' },       venue: 'Giuseppe Meazza' }],
-  'Champions League': [{ home: { id: 85, name: 'Paris Saint-Germain' }, away: { id: 541, name: 'Real Madrid' },    venue: 'Parc des Princes' }],
-  'ATP Tour':         [{ home: { id: 1,   name: 'Novak Djokovic' },     away: { id: 2,   name: 'Carlos Alcaraz' }, venue: 'Court Central' }],
-  'NBA':              [{ home: { id: 12,  name: 'Los Angeles Lakers' }, away: { id: 11,  name: 'Golden State Warriors' }, venue: 'Crypto.com Arena' }],
-  'Euroleague':       [{ home: { id: 120, name: 'Real Madrid' },        away: { id: 121, name: 'CSKA Moscou' },    venue: 'WiZink Center' }],
-  'Top 14':           [{ home: { id: 1,   name: 'Toulouse' },           away: { id: 2,   name: 'La Rochelle' },    venue: 'Stade Ernest-Wallon' }],
-  'UFC':              [{ home: { id: 1,   name: 'Israel Adesanya' },    away: { id: 2,   name: 'Alex Pereira' },   venue: 'T-Mobile Arena' }],
+  'Ligue 1':          [{ home: { id: 85,  name: 'Paris Saint-Germain' }, away: { id: 80,  name: 'Monaco' },               venue: 'Parc des Princes' }],
+  'Premier League':   [{ home: { id: 40,  name: 'Liverpool' },           away: { id: 42,  name: 'Arsenal' },              venue: 'Anfield' }],
+  'La Liga':          [{ home: { id: 541, name: 'Real Madrid' },         away: { id: 529, name: 'Barcelona' },            venue: 'Santiago Bernabéu' }],
+  'Bundesliga':       [{ home: { id: 157, name: 'Bayern Munich' },       away: { id: 165, name: 'Borussia Dortmund' },    venue: 'Allianz Arena' }],
+  'Serie A':          [{ home: { id: 489, name: 'Inter Milan' },         away: { id: 496, name: 'Juventus' },             venue: 'Giuseppe Meazza' }],
+  'Champions League': [{ home: { id: 85,  name: 'Paris Saint-Germain' }, away: { id: 541, name: 'Real Madrid' },          venue: 'Parc des Princes' }],
+  'ATP Tour':         [{ home: { id: 1,   name: 'Novak Djokovic' },      away: { id: 2,   name: 'Carlos Alcaraz' },       venue: 'Court Central' }],
+  'NBA':              [{ home: { id: 12,  name: 'Los Angeles Lakers' },  away: { id: 11,  name: 'Golden State Warriors' },venue: 'Crypto.com Arena' }],
+  'Euroleague':       [{ home: { id: 120, name: 'Real Madrid' },         away: { id: 121, name: 'CSKA Moscou' },          venue: 'WiZink Center' }],
+  'Top 14':           [{ home: { id: 1,   name: 'Toulouse' },            away: { id: 2,   name: 'La Rochelle' },          venue: 'Stade Ernest-Wallon' }],
+  'UFC':              [{ home: { id: 1,   name: 'Israel Adesanya' },     away: { id: 2,   name: 'Alex Pereira' },         venue: 'T-Mobile Arena' }],
 };
 
 function getDemoFixtures(sport, league) {
   const entry = (DEMO_FIXTURES[league] || DEMO_FIXTURES['Ligue 1'])[0];
-  return [
-    {
-      id:       `demo_${league}_${Date.now()}`,
-      isDemo:   true,
-      sport,
-      league,
-      homeTeam: { id: entry.home.id, name: entry.home.name, logo: '' },
-      awayTeam: { id: entry.away.id, name: entry.away.name, logo: '' },
-      date:     new Date().toISOString(),
-      venue:    entry.venue,
-    },
-  ];
+  return [{
+    id:       `demo_${league}_${Date.now()}`,
+    isDemo:   true,
+    sport,
+    league,
+    homeTeam: { id: entry.home.id, name: entry.home.name, logo: '' },
+    awayTeam: { id: entry.away.id, name: entry.away.name, logo: '' },
+    date:     new Date().toISOString(),
+    venue:    entry.venue,
+  }];
 }
 
 function getDemoOdds(fixture) {
@@ -92,58 +72,48 @@ function getDemoOdds(fixture) {
 
 function getDemoStats(fixture) {
   return {
-    home: { name: fixture.homeTeam?.name, form: '80%', goals: 2.3, xg: 2.1, possession: 58 },
-    away: { name: fixture.awayTeam?.name, form: '40%', goals: 1.2, xg: 1.0, possession: 42 },
+    home: { name: fixture.homeTeam?.name, form: '75%', goals: 2.1, xg: 1.9, possession: 56 },
+    away: { name: fixture.awayTeam?.name, form: '45%', goals: 1.3, xg: 1.1, possession: 44 },
   };
 }
 
 function getDemoInjuries() {
-  return [
-    { player: 'Lacazette', team: 'Lyon',  type: 'Blessure musculaire' },
-    { player: 'Tolisso',   team: 'Lyon',  type: 'Suspension' },
-  ];
-}
-
-// ─── Helper : mapper un fixture API → objet normalisé ─
-function mapFixture(f, sport, league) {
-  return {
-    id:       f.fixture.id,
-    sport,
-    league,
-    homeTeam: { id: f.teams.home.id, name: f.teams.home.name, logo: f.teams.home.logo },
-    awayTeam: { id: f.teams.away.id, name: f.teams.away.name, logo: f.teams.away.logo },
-    date:     f.fixture.date,
-    venue:    f.fixture.venue?.name,
-    status:   f.fixture.status?.short,
-  };
+  return [];
 }
 
 // ─── getFixtures ─────────────────────────────────────
 async function getFixtures({ sport = 'football', league, date }) {
-  if (!process.env.API_SPORTS_KEY) {
-    console.warn('[apiSports] Pas de clé API — données démo');
+  const competitionId = LEAGUE_IDS[league];
+
+  // Sports non-football ou pas de clé → démo directement
+  if (!competitionId || !process.env.FOOTBALL_DATA_KEY) {
+    console.warn(`[apiSports] Pas de clé ou sport non supporté (${league}) — données démo`);
     return getDemoFixtures(sport, league);
   }
 
   try {
-    const client      = getClient(sport);
-    const leagueId    = LEAGUE_IDS[league];
-    const currentYear = new Date().getFullYear();
+    const client = getClient();
+    const { data } = await client.get(`/competitions/${competitionId}/matches`, {
+      params: { dateFrom: date, dateTo: date, status: 'SCHEDULED,TIMED,IN_PLAY,PAUSED' },
+    });
 
-    // Essayer l'année en cours, puis N-1 (la saison N peut inclure des matchs joués l'année N+1)
-    for (const season of [currentYear, currentYear - 1]) {
-      const { data } = await client.get('/fixtures', {
-        params: { date, league: leagueId, season },
-      });
-      const results = data.response || [];
-      if (results.length > 0) {
-        return results.map(f => mapFixture(f, sport, league));
-      }
+    const matches = data.matches || [];
+    if (!matches.length) {
+      console.warn(`[apiSports] Aucun match ${league} le ${date} — données démo`);
+      return getDemoFixtures(sport, league);
     }
 
-    // Aucun match trouvé → données démo
-    console.warn('[apiSports] Aucun match trouvé — données démo');
-    return getDemoFixtures(sport, league);
+    return matches.map(m => ({
+      id:       m.id,
+      isDemo:   false,
+      sport,
+      league,
+      homeTeam: { id: m.homeTeam.id, name: m.homeTeam.name, logo: m.homeTeam.crest || '' },
+      awayTeam: { id: m.awayTeam.id, name: m.awayTeam.name, logo: m.awayTeam.crest || '' },
+      date:     m.utcDate,
+      venue:    m.venue || '',
+      status:   m.status,
+    }));
   } catch (err) {
     console.error('[apiSports/getFixtures]', err.message);
     return getDemoFixtures(sport, league);
@@ -152,44 +122,44 @@ async function getFixtures({ sport = 'football', league, date }) {
 
 // ─── getTeamStats ────────────────────────────────────
 async function getTeamStats(fixture) {
-  if (!process.env.API_SPORTS_KEY) return getDemoStats(fixture);
+  if (fixture.isDemo || !process.env.FOOTBALL_DATA_KEY) return getDemoStats(fixture);
 
   try {
-    const client      = getClient(fixture.sport);
-    const currentYear = new Date().getFullYear();
-    // Essayer l'année en cours puis N-1 pour trouver des stats
-    const season      = currentYear;
+    const client = getClient();
+    const competitionId = LEAGUE_IDS[fixture.league];
 
-    const leagueId = LEAGUE_IDS[fixture.league];
-    let homeData, awayData;
-    for (const s of [season, season - 1]) {
-      const [h, a] = await Promise.all([
-        client.get('/teams/statistics', { params: { team: fixture.homeTeam.id, league: leagueId, season: s } }),
-        client.get('/teams/statistics', { params: { team: fixture.awayTeam.id, league: leagueId, season: s } }),
-      ]);
-      if (h.data.response && a.data.response) { homeData = h; awayData = a; break; }
-    }
-    if (!homeData || !awayData) return getDemoStats(fixture);
-    const [homeRes, awayRes] = [homeData, awayData];
+    const [homeRes, awayRes] = await Promise.all([
+      client.get(`/teams/${fixture.homeTeam.id}/matches`, {
+        params: { competitions: competitionId, limit: 10, status: 'FINISHED' },
+      }),
+      client.get(`/teams/${fixture.awayTeam.id}/matches`, {
+        params: { competitions: competitionId, limit: 10, status: 'FINISHED' },
+      }),
+    ]);
 
-    const parseStats = (res, teamName) => {
-      const s = res.data.response;
-      if (!s) return { name: teamName, form: '—', goals: 0, xg: 0, possession: 50 };
-      const form  = s.form || '';
-      const wins  = (form.match(/W/g) || []).length;
-      const played = form.length || 1;
+    const parseStats = (res, teamId, teamName) => {
+      const matches = res.data.matches || [];
+      if (!matches.length) return { name: teamName, form: '50%', goals: 1.5, xg: 1.3, possession: 50 };
+      const wins = matches.filter(m =>
+        (m.homeTeam.id === teamId && m.score.winner === 'HOME_TEAM') ||
+        (m.awayTeam.id === teamId && m.score.winner === 'AWAY_TEAM')
+      ).length;
+      const totalGoals = matches.reduce((acc, m) => {
+        const isHome = m.homeTeam.id === teamId;
+        return acc + (isHome ? (m.score.fullTime.home || 0) : (m.score.fullTime.away || 0));
+      }, 0);
       return {
         name:       teamName,
-        form:       Math.round(wins / played * 100) + '%',
-        goals:      parseFloat(s.goals?.for?.average?.total || 0),
-        xg:         parseFloat(s.goals?.for?.average?.total || 0) * 0.9,
-        possession: parseInt(s.fixtures?.played?.total || 50),
+        form:       Math.round(wins / matches.length * 100) + '%',
+        goals:      parseFloat((totalGoals / matches.length).toFixed(1)),
+        xg:         parseFloat((totalGoals / matches.length * 0.9).toFixed(1)),
+        possession: 50,
       };
     };
 
     return {
-      home: parseStats(homeRes, fixture.homeTeam.name),
-      away: parseStats(awayRes, fixture.awayTeam.name),
+      home: parseStats(homeRes, fixture.homeTeam.id, fixture.homeTeam.name),
+      away: parseStats(awayRes, fixture.awayTeam.id, fixture.awayTeam.name),
     };
   } catch (err) {
     console.error('[apiSports/getTeamStats]', err.message);
@@ -198,66 +168,15 @@ async function getTeamStats(fixture) {
 }
 
 // ─── getInjuries ─────────────────────────────────────
+// football-data.org ne fournit pas les blessures → démo vide
 async function getInjuries(fixture) {
-  if (!process.env.API_SPORTS_KEY) return getDemoInjuries();
-
-  try {
-    const client = getClient(fixture.sport);
-    const currentYear = new Date().getFullYear();
-    const season = String(fixture.id).startsWith('demo') ? currentYear : currentYear;
-    const { data } = await client.get('/injuries', {
-      params: {
-        fixture: fixture.id,
-        league:  LEAGUE_IDS[fixture.league],
-        season,
-      },
-    });
-
-    return (data.response || []).map(i => ({
-      player: i.player?.name,
-      team:   i.team?.name,
-      type:   i.player?.reason || 'Blessure',
-    }));
-  } catch (err) {
-    console.error('[apiSports/getInjuries]', err.message);
-    return getDemoInjuries();
-  }
+  return getDemoInjuries();
 }
 
 // ─── getOdds ─────────────────────────────────────────
+// football-data.org ne fournit pas les cotes → démo
 async function getOdds(fixture) {
-  if (!process.env.API_SPORTS_KEY) return getDemoOdds(fixture);
-
-  try {
-    const client = getClient(fixture.sport);
-    const { data } = await client.get('/odds', {
-      params: { fixture: fixture.id },
-    });
-
-    const bookmakers = {};
-    const targetBks  = ['Bet365', 'Unibet', 'Betclic', 'Winamax'];
-
-    (data.response?.[0]?.bookmakers || []).forEach(bk => {
-      if (!targetBks.includes(bk.name)) return;
-      const market = bk.bets?.find(b => b.name === 'Match Winner');
-      if (!market) return;
-      const findVal = (name) => parseFloat(market.values?.find(v => v.value === name)?.odd || 0);
-      bookmakers[bk.name] = {
-        home: findVal('Home'),
-        draw: findVal('Draw'),
-        away: findVal('Away'),
-      };
-    });
-
-    // Compléter avec données démo si bookmaker manquant
-    const demo = getDemoOdds(fixture);
-    targetBks.forEach(bk => { if (!bookmakers[bk]) bookmakers[bk] = demo[bk]; });
-
-    return bookmakers;
-  } catch (err) {
-    console.error('[apiSports/getOdds]', err.message);
-    return getDemoOdds(fixture);
-  }
+  return getDemoOdds(fixture);
 }
 
 module.exports = { getFixtures, getTeamStats, getInjuries, getOdds, getDemoFixtures };
