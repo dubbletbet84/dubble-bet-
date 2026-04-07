@@ -50,13 +50,6 @@ async function findBestPick(sport, league, date) {
   return validPicks.sort((a, b) => b.value - a.value)[0];
 }
 
-// ─── Helper : ajouter N jours à une date ISO (YYYY-MM-DD) ─
-function addDays(dateStr, n) {
-  const d = new Date(dateStr);
-  d.setDate(d.getDate() + n);
-  return d.toISOString().slice(0, 10);
-}
-
 // ─── Middleware : vérifier quota ─────────────────────
 async function checkQuota(req, res, next) {
   const weekStart = new Date();
@@ -105,27 +98,14 @@ router.post('/generate', requireAuth, checkQuota, async (req, res) => {
     let usedLeague   = league;
     let suggestion   = null;
 
-    // 2. Si aucun pick valide → chercher les 2 prochains jours (même ligue)
-    if (!bestPick) {
-      for (const offset of [1, 2]) {
-        const nextDate = addDays(date, offset);
-        bestPick = await findBestPick(sport, league, nextDate);
-        if (bestPick) {
-          usedDate   = nextDate;
-          suggestion = `Aucun pari à valeur le ${date} — meilleur pick trouvé le ${nextDate} (même ligue).`;
-          break;
-        }
-      }
-    }
-
-    // 3. Si toujours rien → essayer les autres ligues du même sport (date d'origine)
+    // 2. Si aucun pick valide → essayer les autres ligues du même sport (même jour)
     if (!bestPick) {
       const alternatives = (ALT_LEAGUES[sport] || []).filter(l => l !== league);
       for (const altLeague of alternatives) {
         bestPick = await findBestPick(sport, altLeague, date);
         if (bestPick) {
           usedLeague = altLeague;
-          suggestion = `Aucun pari à valeur en ${league} — meilleur pick trouvé en ${altLeague}.`;
+          suggestion = `Aucun pari à valeur en ${league} ce jour — meilleur pick trouvé en ${altLeague}.`;
           break;
         }
       }
