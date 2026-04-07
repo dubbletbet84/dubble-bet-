@@ -247,32 +247,46 @@ router.patch('/:id/result', requireAuth, async (req, res) => {
 });
 
 // ─── GET /api/pronos/debug-api ───────────────────────
-// Teste la connexion API-Sports et retourne la réponse brute
+// Teste la connexion API-Sports sur plusieurs ligues/dates
 router.get('/debug-api', async (req, res) => {
-  const axios = require('axios');
-  const key   = process.env.API_SPORTS_KEY;
-
+  const axios  = require('axios');
+  const key    = process.env.API_SPORTS_KEY;
   if (!key) return res.json({ error: 'API_SPORTS_KEY manquante dans Railway' });
 
-  try {
-    const { data } = await axios.get('https://v3.football.api-sports.io/fixtures', {
-      headers: {
-        'x-apisports-key':  key,
-        'x-apisports-host': 'v3.football.api-sports.io',
-      },
-      params: { date: new Date().toISOString().slice(0, 10), league: 61, season: 2024 },
-      timeout: 8000,
-    });
-    res.json({
-      key_present:    true,
-      key_prefix:     key.slice(0, 8) + '...',
-      api_errors:     data.errors,
-      results_count:  data.results,
-      first_fixture:  data.response?.[0] || null,
-    });
-  } catch (err) {
-    res.json({ error: err.message, key_prefix: key.slice(0, 8) + '...' });
+  const today    = new Date().toISOString().slice(0, 10);
+  const tomorrow = new Date(Date.now() + 86400000).toISOString().slice(0, 10);
+
+  const checks = [
+    { label: 'Ligue 1 aujourd\'hui (s2025)',          league: 61,  date: today,    season: 2025 },
+    { label: 'Champions League aujourd\'hui (s2025)', league: 2,   date: today,    season: 2025 },
+    { label: 'Champions League demain (s2025)',       league: 2,   date: tomorrow, season: 2025 },
+    { label: 'Premier League aujourd\'hui (s2025)',   league: 39,  date: today,    season: 2025 },
+    { label: 'Premier League demain (s2025)',         league: 39,  date: tomorrow, season: 2025 },
+  ];
+
+  const results = [];
+  for (const c of checks) {
+    try {
+      const { data } = await axios.get('https://v3.football.api-sports.io/fixtures', {
+        headers: { 'x-apisports-key': key, 'x-apisports-host': 'v3.football.api-sports.io' },
+        params:  { date: c.date, league: c.league, season: c.season },
+        timeout: 8000,
+      });
+      results.push({
+        label:   c.label,
+        date:    c.date,
+        count:   data.results,
+        errors:  data.errors,
+        matches: (data.response || []).slice(0, 2).map(f =>
+          `${f.teams.home.name} vs ${f.teams.away.name} (${f.fixture.status.short})`
+        ),
+      });
+    } catch (err) {
+      results.push({ label: c.label, error: err.message });
+    }
   }
+
+  res.json({ key_prefix: key.slice(0, 8) + '...', results });
 });
 
 module.exports = router;
