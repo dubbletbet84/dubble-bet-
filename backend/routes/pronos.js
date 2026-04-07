@@ -28,17 +28,22 @@ const ALT_LEAGUES = {
   boxe:       ['UFC'],
 };
 
-// ─── Helper : vérifie si une ligue a de VRAIS matchs (non-démo) ce jour ─
+// ─── Helper : vérifie si une ligue a des matchs ce jour ─
+// Football : vrais matchs seulement / Autres sports : démo accepté
 async function hasRealMatches(sport, league, date) {
   const fixtures = await apiSports.getFixtures({ sport, league, date });
-  return fixtures.length > 0 && !fixtures[0].isDemo;
+  if (!fixtures.length) return false;
+  if (sport === 'football') return !fixtures[0].isDemo;
+  return true; // autres sports → toujours OK (pas d'API réelle)
 }
 
 // ─── Helper : analyser un lot de matchs et retourner le meilleur pick ─
 async function findBestPick(sport, league, date) {
   let fixtures = await apiSports.getFixtures({ sport, league, date });
-  // Ne pas utiliser les démos ici — retourner null si aucun vrai match
-  if (!fixtures.length || fixtures[0].isDemo) return null;
+  // Pour le football : rejeter les démos (on a une vraie API)
+  // Pour les autres sports : accepter les démos (pas d'API disponible)
+  if (!fixtures.length) return null;
+  if (sport === 'football' && fixtures[0].isDemo) return null;
 
   const enriched = await Promise.all(
     fixtures.slice(0, 3).map(async (fixture) => {
