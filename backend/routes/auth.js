@@ -95,5 +95,29 @@ router.post('/verify', async (req, res) => {
   res.json({ user: data.user });
 });
 
+// ─── POST /api/auth/create-profile ──────────────────
+// Crée le profil utilisateur depuis le backend (bypass RLS via service role)
+router.post('/create-profile', async (req, res) => {
+  const { userId, email, plan, full_name } = req.body;
+  if (!userId || !email) return res.status(400).json({ error: 'userId et email requis' });
+
+  try {
+    const { data, error } = await supabase
+      .from('profiles')
+      .upsert(
+        { id: userId, email, plan: plan || 'pro', full_name: full_name || email.split('@')[0] },
+        { onConflict: 'id', ignoreDuplicates: true }
+      )
+      .select()
+      .single();
+
+    if (error) throw error;
+    res.json({ profile: data });
+  } catch (err) {
+    console.error('[create-profile]', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 module.exports = router;
 module.exports.requireAuth = requireAuth;
