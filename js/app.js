@@ -252,7 +252,7 @@ async function generatePronostic({ sport, league, date, info = '' }) {
   if (result.no_match) {
     const alts = (result.available_leagues || []).join(', ');
     const msg  = `Pas de match ${result.requested_league} à la date sélectionnée.`
-               + (alts ? ` Disponible : ${alts}.` : '');
+               + (alts ? ` Compétitions disponibles : ${alts}.` : ' Aucune autre compétition disponible ce jour.');
     const err  = new Error(msg);
     err.no_match           = true;
     err.available_leagues  = result.available_leagues || [];
