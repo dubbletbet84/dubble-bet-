@@ -61,7 +61,7 @@ router.get('/me', requireAuth, async (req, res) => {
       .eq('user_id', req.user.id)
       .gte('created_at', weekStart.toISOString());
 
-    const quotas = { starter: 5, pro: 10, illimite: Infinity, unit: 1 };
+    const quotas = { starter: 5, pro: 10, expert: 30, illimite: Infinity, unit: 1 };
     const max    = quotas[profile?.plan || 'pro'] || 10;
 
     res.json({

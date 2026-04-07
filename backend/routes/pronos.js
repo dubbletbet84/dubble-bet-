@@ -60,10 +60,10 @@ router.post('/generate', requireAuth, checkQuota, async (req, res) => {
   }
 
   try {
-    // 1. Récupérer les matchs du jour via API-Sports
-    const fixtures = await apiSports.getFixtures({ sport, league, date });
+    // 1. Récupérer les matchs du jour via API-Sports (avec fallback démo si vide)
+    let fixtures = await apiSports.getFixtures({ sport, league, date });
     if (!fixtures.length) {
-      return res.status(404).json({ error: 'Aucun match trouvé pour ces critères.' });
+      fixtures = apiSports.getDemoFixtures(sport, league);
     }
 
     // 2. Récupérer stats, blessés, cotes pour chaque match

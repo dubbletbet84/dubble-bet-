@@ -88,6 +88,20 @@ function getDemoInjuries() {
   ];
 }
 
+// ─── Helper : mapper un fixture API → objet normalisé ─
+function mapFixture(f, sport, league) {
+  return {
+    id:       f.fixture.id,
+    sport,
+    league,
+    homeTeam: { id: f.teams.home.id, name: f.teams.home.name, logo: f.teams.home.logo },
+    awayTeam: { id: f.teams.away.id, name: f.teams.away.name, logo: f.teams.away.logo },
+    date:     f.fixture.date,
+    venue:    f.fixture.venue?.name,
+    status:   f.fixture.status?.short,
+  };
+}
+
 // ─── getFixtures ─────────────────────────────────────
 async function getFixtures({ sport = 'football', league, date }) {
   if (!process.env.API_SPORTS_KEY) {
@@ -96,22 +110,24 @@ async function getFixtures({ sport = 'football', league, date }) {
   }
 
   try {
-    const client   = getClient(sport);
-    const leagueId = LEAGUE_IDS[league];
-    const { data } = await client.get('/fixtures', {
-      params: { date, league: leagueId, season: new Date().getFullYear() },
-    });
+    const client      = getClient(sport);
+    const leagueId    = LEAGUE_IDS[league];
+    const currentYear = new Date().getFullYear();
 
-    return (data.response || []).map(f => ({
-      id:       f.fixture.id,
-      sport,
-      league,
-      homeTeam: { id: f.teams.home.id, name: f.teams.home.name, logo: f.teams.home.logo },
-      awayTeam: { id: f.teams.away.id, name: f.teams.away.name, logo: f.teams.away.logo },
-      date:     f.fixture.date,
-      venue:    f.fixture.venue?.name,
-      status:   f.fixture.status?.short,
-    }));
+    // Essayer l'année en cours, puis N-1 (la saison N peut inclure des matchs joués l'année N+1)
+    for (const season of [currentYear, currentYear - 1]) {
+      const { data } = await client.get('/fixtures', {
+        params: { date, league: leagueId, season },
+      });
+      const results = data.response || [];
+      if (results.length > 0) {
+        return results.map(f => mapFixture(f, sport, league));
+      }
+    }
+
+    // Aucun match trouvé → données démo
+    console.warn('[apiSports] Aucun match trouvé — données démo');
+    return getDemoFixtures(sport, league);
   } catch (err) {
     console.error('[apiSports/getFixtures]', err.message);
     return getDemoFixtures(sport, league);
@@ -123,17 +139,22 @@ async function getTeamStats(fixture) {
   if (!process.env.API_SPORTS_KEY) return getDemoStats(fixture);
 
   try {
-    const client = getClient(fixture.sport);
-    const season = new Date().getFullYear();
+    const client      = getClient(fixture.sport);
+    const currentYear = new Date().getFullYear();
+    // Essayer l'année en cours puis N-1 pour trouver des stats
+    const season      = currentYear;
 
-    const [homeRes, awayRes] = await Promise.all([
-      client.get('/teams/statistics', {
-        params: { team: fixture.homeTeam.id, league: LEAGUE_IDS[fixture.league], season },
-      }),
-      client.get('/teams/statistics', {
-        params: { team: fixture.awayTeam.id, league: LEAGUE_IDS[fixture.league], season },
-      }),
-    ]);
+    const leagueId = LEAGUE_IDS[fixture.league];
+    let homeData, awayData;
+    for (const s of [season, season - 1]) {
+      const [h, a] = await Promise.all([
+        client.get('/teams/statistics', { params: { team: fixture.homeTeam.id, league: leagueId, season: s } }),
+        client.get('/teams/statistics', { params: { team: fixture.awayTeam.id, league: leagueId, season: s } }),
+      ]);
+      if (h.data.response && a.data.response) { homeData = h; awayData = a; break; }
+    }
+    if (!homeData || !awayData) return getDemoStats(fixture);
+    const [homeRes, awayRes] = [homeData, awayData];
 
     const parseStats = (res, teamName) => {
       const s = res.data.response;
@@ -166,11 +187,13 @@ async function getInjuries(fixture) {
 
   try {
     const client = getClient(fixture.sport);
+    const currentYear = new Date().getFullYear();
+    const season = String(fixture.id).startsWith('demo') ? currentYear : currentYear;
     const { data } = await client.get('/injuries', {
       params: {
         fixture: fixture.id,
         league:  LEAGUE_IDS[fixture.league],
-        season:  new Date().getFullYear(),
+        season,
       },
     });
 
@@ -221,4 +244,4 @@ async function getOdds(fixture) {
   }
 }
 
-module.exports = { getFixtures, getTeamStats, getInjuries, getOdds };
+module.exports = { getFixtures, getTeamStats, getInjuries, getOdds, getDemoFixtures };
