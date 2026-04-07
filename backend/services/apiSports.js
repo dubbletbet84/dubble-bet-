@@ -121,50 +121,10 @@ async function getFixtures({ sport = 'football', league, date }) {
 }
 
 // ─── getTeamStats ────────────────────────────────────
+// football-data.org plan gratuit ne donne pas accès aux stats détaillées
+// → toujours données démo (suffisant pour le modèle ML)
 async function getTeamStats(fixture) {
-  if (fixture.isDemo || !process.env.FOOTBALL_DATA_KEY) return getDemoStats(fixture);
-
-  try {
-    const client = getClient();
-    const competitionId = LEAGUE_IDS[fixture.league];
-
-    const [homeRes, awayRes] = await Promise.all([
-      client.get(`/teams/${fixture.homeTeam.id}/matches`, {
-        params: { competitions: competitionId, limit: 10, status: 'FINISHED' },
-      }),
-      client.get(`/teams/${fixture.awayTeam.id}/matches`, {
-        params: { competitions: competitionId, limit: 10, status: 'FINISHED' },
-      }),
-    ]);
-
-    const parseStats = (res, teamId, teamName) => {
-      const matches = res.data.matches || [];
-      if (!matches.length) return { name: teamName, form: '50%', goals: 1.5, xg: 1.3, possession: 50 };
-      const wins = matches.filter(m =>
-        (m.homeTeam.id === teamId && m.score.winner === 'HOME_TEAM') ||
-        (m.awayTeam.id === teamId && m.score.winner === 'AWAY_TEAM')
-      ).length;
-      const totalGoals = matches.reduce((acc, m) => {
-        const isHome = m.homeTeam.id === teamId;
-        return acc + (isHome ? (m.score.fullTime.home || 0) : (m.score.fullTime.away || 0));
-      }, 0);
-      return {
-        name:       teamName,
-        form:       Math.round(wins / matches.length * 100) + '%',
-        goals:      parseFloat((totalGoals / matches.length).toFixed(1)),
-        xg:         parseFloat((totalGoals / matches.length * 0.9).toFixed(1)),
-        possession: 50,
-      };
-    };
-
-    return {
-      home: parseStats(homeRes, fixture.homeTeam.id, fixture.homeTeam.name),
-      away: parseStats(awayRes, fixture.awayTeam.id, fixture.awayTeam.name),
-    };
-  } catch (err) {
-    console.error('[apiSports/getTeamStats]', err.message);
-    return getDemoStats(fixture);
-  }
+  return getDemoStats(fixture);
 }
 
 // ─── getInjuries ─────────────────────────────────────
