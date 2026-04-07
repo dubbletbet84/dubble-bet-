@@ -299,4 +299,40 @@ router.get('/debug-api', async (req, res) => {
   res.json({ key_present: true, key_prefix: key.slice(0, 8) + '...', today, tomorrow, results });
 });
 
+// ─── GET /api/pronos/debug-sports ────────────────────
+// Teste API-Sports sur basket/tennis/MMA/rugby avec la clé existante
+router.get('/debug-sports', async (req, res) => {
+  const axios = require('axios');
+  const key   = process.env.API_SPORTS_KEY;
+  if (!key) return res.json({ error: 'API_SPORTS_KEY manquante' });
+
+  const today = new Date().toISOString().slice(0, 10);
+  const checks = [
+    { label: 'NBA basket',   url: 'https://v1.basketball.api-sports.io/games',  params: { date: today, league: 12, season: 2024 } },
+    { label: 'ATP tennis',   url: 'https://v1.tennis.api-sports.io/games',      params: { date: today } },
+    { label: 'UFC mma',      url: 'https://v1.mma.api-sports.io/fights',        params: { date: today } },
+    { label: 'Top 14 rugby', url: 'https://v1.rugby.api-sports.io/games',       params: { date: today, league: 1, season: 2025 } },
+  ];
+
+  const results = [];
+  for (const c of checks) {
+    try {
+      const { data } = await axios.get(c.url, {
+        headers: { 'x-apisports-key': key },
+        params: c.params,
+        timeout: 8000,
+      });
+      results.push({
+        label:  c.label,
+        errors: data.errors,
+        count:  data.results,
+        sample: data.response?.slice(0, 2),
+      });
+    } catch (err) {
+      results.push({ label: c.label, error: err.message });
+    }
+  }
+  res.json({ key_prefix: key.slice(0, 8) + '...', today, results });
+});
+
 module.exports = router;
