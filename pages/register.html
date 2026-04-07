@@ -218,7 +218,18 @@
 
       try {
         // Tentative Supabase (si configuré)
-        await window.DB.signUp(email, password, { plan });
+        const signUpData = await window.DB.signUp(email, password, { plan });
+
+        // Créer le profil en base immédiatement après l'inscription
+        const userId = signUpData?.user?.id;
+        if (userId) {
+          await window.DB.createProfile({
+            id:        userId,
+            email,
+            plan,
+            full_name: email.split('@')[0],
+          });
+        }
       } catch (err) {
         // Supabase non configuré → on continue en mode démo
         if (!err.message?.includes('already registered')) {

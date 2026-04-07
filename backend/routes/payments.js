@@ -104,16 +104,29 @@ router.post('/webhook', async (req, res) => {
         const email   = session.customer_email;
         const plan    = session.metadata?.plan;
 
-        // Mettre à jour le profil Supabase
-        await supabase
-          .from('profiles')
-          .update({
-            plan,
-            stripe_customer_id:     session.customer,
-            stripe_subscription_id: session.subscription,
-            updated_at:             new Date().toISOString(),
-          })
-          .eq('email', email);
+        // Trouver l'user Supabase par email pour récupérer son UUID
+        const { data: authData } = await supabase.auth.admin.listUsers({ perPage: 1000 });
+        const authUser = authData?.users?.find(u => u.email === email);
+
+        if (authUser) {
+          // UPSERT : crée le profil s'il n'existe pas, le met à jour sinon
+          await supabase
+            .from('profiles')
+            .upsert({
+              id:                     authUser.id,
+              email,
+              plan,
+              stripe_customer_id:     session.customer,
+              stripe_subscription_id: session.subscription,
+              updated_at:             new Date().toISOString(),
+            }, { onConflict: 'id' });
+        } else {
+          // Fallback : update par email si l'user existe déjà sans UUID connu
+          await supabase
+            .from('profiles')
+            .update({ plan, stripe_customer_id: session.customer, stripe_subscription_id: session.subscription, updated_at: new Date().toISOString() })
+            .eq('email', email);
+        }
 
         console.log(`✅ Paiement validé : ${email} → ${plan}`);
         break;

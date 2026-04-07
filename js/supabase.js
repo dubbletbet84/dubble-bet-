@@ -118,6 +118,21 @@ async function getUserProfile(userId) {
   return data;
 }
 
+async function createProfile({ id, email, plan = 'pro', full_name = null }) {
+  const client = initSupabase();
+  if (!client) return null;
+  const { data, error } = await client
+    .from('profiles')
+    .upsert(
+      { id, email, plan, full_name, created_at: new Date().toISOString() },
+      { onConflict: 'id', ignoreDuplicates: true }
+    )
+    .select()
+    .single();
+  if (error) console.warn('[createProfile]', error.message);
+  return data;
+}
+
 async function savePronostic(pronoData) {
   const client = initSupabase();
   if (!client) throw new Error('Supabase non initialisé');
@@ -164,5 +179,5 @@ async function updatePronosticResult(pronoId, result) {
 window.DB = {
   signUp, signIn, signInWithGoogle, signOut,
   getSession, getUser, onAuthChange, requireAuth,
-  getUserProfile, savePronostic, getUserPronostics, updatePronosticResult
+  getUserProfile, createProfile, savePronostic, getUserPronostics, updatePronosticResult
 };

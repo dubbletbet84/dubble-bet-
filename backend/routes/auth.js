@@ -34,6 +34,14 @@ async function requireAuth(req, res, next) {
 // Retourne le profil utilisateur + quotas
 router.get('/me', requireAuth, async (req, res) => {
   try {
+    // Crée le profil s'il n'existe pas encore (upsert silencieux)
+    await supabase
+      .from('profiles')
+      .upsert(
+        { id: req.user.id, email: req.user.email, full_name: req.user.user_metadata?.full_name || null },
+        { onConflict: 'id', ignoreDuplicates: true }
+      );
+
     const { data: profile, error } = await supabase
       .from('profiles')
       .select('*')
