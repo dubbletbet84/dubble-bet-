@@ -265,7 +265,23 @@
     document.addEventListener('DOMContentLoaded', async () => {
       // Auth guard
       const session = await window.DB.getSession();
+
+      // Si pas de session mais paiement réussi → l'utilisateur doit confirmer son email
+      const params = new URLSearchParams(window.location.search);
+      const pendingEmail = sessionStorage.getItem('pending_confirm_email');
+      if (!session && params.get('payment') === 'success' && pendingEmail) {
+        sessionStorage.removeItem('pending_confirm_email');
+        showToast(`✅ Paiement confirmé ! Vérifiez votre email (${pendingEmail}) pour activer votre compte.`, 'success', 8000);
+        setTimeout(() => { window.location.href = 'login.html'; }, 5000);
+        return;
+      }
+
       if (!session) { window.location.href = 'login.html'; return; }
+
+      // Message de bienvenue après paiement
+      if (params.get('payment') === 'success') {
+        showToast('🎉 Paiement confirmé ! Bienvenue sur Dubble Bet.', 'success', 5000);
+      }
 
       // Date par défaut = aujourd'hui
       document.getElementById('dateInput').value = new Date().toISOString().split('T')[0];

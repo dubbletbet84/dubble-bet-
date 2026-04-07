@@ -243,18 +243,13 @@
 
       // Tentative Stripe (si backend disponible)
       try {
-        const PRICE_IDS = {
-          starter:  'price_STRIPE_STARTER_ID',  // TODO: remplacer
-          pro:      'price_STRIPE_PRO_ID',
-          expert:   'price_STRIPE_EXPERT_ID',
-          illimite: 'price_STRIPE_ILLIMITE_ID',
-          unit:     'price_STRIPE_UNIT_ID',
-        };
         const res = await window.App.callAPI('/payments/checkout', {
           method: 'POST',
-          body: JSON.stringify({ plan, email, priceId: PRICE_IDS[plan] }),
+          body: JSON.stringify({ plan, email }),
         });
         if (res?.url) {
+          // Avertir l'utilisateur de confirmer son email après paiement
+          sessionStorage.setItem('pending_confirm_email', email);
           window.location.href = res.url;
           return;
         }
