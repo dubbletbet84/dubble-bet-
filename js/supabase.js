@@ -14,12 +14,13 @@ const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFz
 // Le script Supabase doit être inclus avant ce fichier dans vos pages HTML :
 // <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 
-let supabase = null;
+let _sbClient = null;
 
 function initSupabase() {
+  if (_sbClient) return _sbClient;
   if (typeof window.supabase !== 'undefined' && window.supabase.createClient) {
-    supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
-    return supabase;
+    _sbClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
+    return _sbClient;
   }
   console.warn('Supabase SDK non chargé. Assurez-vous d\'inclure le CDN Supabase.');
   return null;
