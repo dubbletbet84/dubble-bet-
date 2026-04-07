@@ -246,4 +246,33 @@ router.patch('/:id/result', requireAuth, async (req, res) => {
   res.json(data);
 });
 
+// ─── GET /api/pronos/debug-api ───────────────────────
+// Teste la connexion API-Sports et retourne la réponse brute
+router.get('/debug-api', async (req, res) => {
+  const axios = require('axios');
+  const key   = process.env.API_SPORTS_KEY;
+
+  if (!key) return res.json({ error: 'API_SPORTS_KEY manquante dans Railway' });
+
+  try {
+    const { data } = await axios.get('https://v3.football.api-sports.io/fixtures', {
+      headers: {
+        'x-apisports-key':  key,
+        'x-apisports-host': 'v3.football.api-sports.io',
+      },
+      params: { date: new Date().toISOString().slice(0, 10), league: 61, season: 2024 },
+      timeout: 8000,
+    });
+    res.json({
+      key_present:    true,
+      key_prefix:     key.slice(0, 8) + '...',
+      api_errors:     data.errors,
+      results_count:  data.results,
+      first_fixture:  data.response?.[0] || null,
+    });
+  } catch (err) {
+    res.json({ error: err.message, key_prefix: key.slice(0, 8) + '...' });
+  }
+});
+
 module.exports = router;
