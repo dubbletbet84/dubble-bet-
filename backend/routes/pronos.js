@@ -268,12 +268,14 @@ router.get('/debug-api', async (req, res) => {
 
   if (!key) return res.json({ error: 'FOOTBALL_DATA_KEY manquante dans Railway', today, tomorrow });
 
+  // Tester sur 7 jours pour trouver les prochains matchs
+  const d = (offset) => new Date(Date.now() + offset * 86400000).toISOString().slice(0, 10);
   const checks = [
-    { label: 'Champions League aujourd\'hui', comp: 'CL',  date: today },
-    { label: 'Champions League demain',       comp: 'CL',  date: tomorrow },
-    { label: 'Premier League aujourd\'hui',   comp: 'PL',  date: today },
-    { label: 'Premier League demain',         comp: 'PL',  date: tomorrow },
-    { label: 'Ligue 1 aujourd\'hui',          comp: 'FL1', date: today },
+    { label: 'Ligue 1 — 7 prochains jours',         comp: 'FL1', from: today,   to: d(7)  },
+    { label: 'Premier League — 7 prochains jours',   comp: 'PL',  from: today,   to: d(7)  },
+    { label: 'Champions League — 7 prochains jours', comp: 'CL',  from: today,   to: d(7)  },
+    { label: 'La Liga — 7 prochains jours',          comp: 'PD',  from: today,   to: d(7)  },
+    { label: 'Bundesliga — 7 prochains jours',       comp: 'BL1', from: today,   to: d(7)  },
   ];
 
   const results = [];
@@ -281,16 +283,18 @@ router.get('/debug-api', async (req, res) => {
     try {
       const { data } = await axios.get(`https://api.football-data.org/v4/competitions/${c.comp}/matches`, {
         headers: { 'X-Auth-Token': key },
-        params:  { dateFrom: c.date, dateTo: c.date, status: 'SCHEDULED,TIMED' },
+        params:  { dateFrom: c.from, dateTo: c.to, status: 'SCHEDULED,TIMED' },
         timeout: 8000,
       });
+      const matches = data.matches || [];
       results.push({
-        label:   c.label,
-        count:   data.matches?.length || 0,
-        matches: (data.matches || []).slice(0, 3).map(m => `${m.homeTeam.name} vs ${m.awayTeam.name}`),
+        label:        c.label,
+        count:        matches.length,
+        next_matches: matches.slice(0, 5).map(m => `${m.utcDate.slice(0,10)} — ${m.homeTeam.name} vs ${m.awayTeam.name}`),
+        error_api:    data.message || null,
       });
     } catch (err) {
-      results.push({ label: c.label, error: err.response?.data?.message || err.message });
+      results.push({ label: c.label, error: err.response?.data?.message || err.message, status: err.response?.status });
     }
   }
 
