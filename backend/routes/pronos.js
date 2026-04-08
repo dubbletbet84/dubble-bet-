@@ -307,11 +307,13 @@ router.get('/debug-sports', async (req, res) => {
   if (!key) return res.json({ error: 'API_SPORTS_KEY manquante' });
 
   const today = new Date().toISOString().slice(0, 10);
+  const tomorrow = new Date(Date.now() + 86400000).toISOString().slice(0, 10);
   const checks = [
-    { label: 'NBA basket',   url: 'https://v1.basketball.api-sports.io/games',  params: { date: today, league: 12, season: 2024 } },
-    { label: 'ATP tennis',   url: 'https://v1.tennis.api-sports.io/games',      params: { date: today } },
-    { label: 'UFC mma',      url: 'https://v1.mma.api-sports.io/fights',        params: { date: today } },
-    { label: 'Top 14 rugby', url: 'https://v1.rugby.api-sports.io/games',       params: { date: today, league: 1, season: 2025 } },
+    { label: 'NBA s2024',    url: 'https://v1.basketball.api-sports.io/games',  params: { date: today, league: 12, season: 2024 } },
+    { label: 'NBA s2025',    url: 'https://v1.basketball.api-sports.io/games',  params: { date: today, league: 12, season: 2025 } },
+    { label: 'NBA demain s2025', url: 'https://v1.basketball.api-sports.io/games', params: { date: tomorrow, league: 12, season: 2025 } },
+    { label: 'UFC today',    url: 'https://v1.mma.api-sports.io/fights',        params: { date: today } },
+    { label: 'UFC demain',   url: 'https://v1.mma.api-sports.io/fights',        params: { date: tomorrow } },
   ];
 
   const results = [];
