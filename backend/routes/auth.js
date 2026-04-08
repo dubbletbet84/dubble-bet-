@@ -124,12 +124,24 @@ router.post('/create-profile', async (req, res) => {
 router.delete('/account', requireAuth, async (req, res) => {
   const userId = req.user.id;
   try {
-    // Supprimer les données utilisateur (RLS bypass via service role)
-    await supabase.from('pronostics').delete().eq('user_id', userId);
-    await supabase.from('profiles').delete().eq('id', userId);
-    // Supprimer l'utilisateur Supabase Auth
+    // 1. Supprimer toutes les données liées (FK vers profiles ou user_id)
+    const dels = await Promise.allSettled([
+      supabase.from('pronostics').delete().eq('user_id', userId),
+      supabase.from('profiles').delete().eq('id', userId),
+    ]);
+    dels.forEach(({ status, reason }) => {
+      if (status === 'rejected') console.warn('[delete-account] data del warn:', reason);
+    });
+
+    // 2. Attendre un court instant pour laisser les FK se résoudre
+    await new Promise(r => setTimeout(r, 300));
+
+    // 3. Supprimer l'utilisateur Supabase Auth
     const { error } = await supabase.auth.admin.deleteUser(userId);
-    if (error) throw error;
+    if (error) {
+      console.error('[delete-account] admin.deleteUser:', error.message);
+      throw error;
+    }
     res.json({ success: true });
   } catch (err) {
     console.error('[delete-account]', err.message);
@@ -146,10 +158,10 @@ router.post('/cleanup-orphan', async (req, res) => {
 
   try {
     // Chercher l'utilisateur par email via admin API
-    const { data: { users }, error: listErr } = await supabase.auth.admin.listUsers();
+    const { data: { users }, error: listErr } = await supabase.auth.admin.listUsers({ perPage: 1000 });
     if (listErr) throw listErr;
 
-    const authUser = users.find(u => u.email === email);
+    const authUser = users.find(u => u.email?.toLowerCase() === email.toLowerCase());
     if (!authUser) return res.json({ status: 'not_found' });
 
     // Vérifier si un profil existe
