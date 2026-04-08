@@ -546,34 +546,31 @@
         document.getElementById('confBar').style.width = prono.confidence + '%';
       }, 100);
 
-      // Bookmakers — affiche uniquement la cote du pick + moyenne
+      // Bookmakers
       const bkEl = document.getElementById('bookmakersContent');
-      if (prono.bookmakers) {
-        const pickKey = prono.pick_key || 'home'; // 'home' | 'draw' | 'away'
-        const pickLabel = { home: '1', draw: 'N', away: '2' }[pickKey] || '1';
+      const bkAvgEl = document.getElementById('avgCote');
+      const bkEntries = Object.entries(prono.bookmakers || {});
 
-        // Cotes du pick par bookmaker
-        const bkCotes = Object.entries(prono.bookmakers).map(([name, odds]) => {
-          const cote = odds[pickKey] || Object.values(odds)[0];
-          return { name, cote };
-        });
-
-        // Calcul de la moyenne
-        const avg = bkCotes.reduce((s, b) => s + b.cote, 0) / bkCotes.length;
-        const avgStr = avg.toFixed(2);
-
-        // Affichage : une ligne par bookmaker, mise en valeur de la meilleure cote
-        const maxCote = Math.max(...bkCotes.map(b => b.cote));
-        bkEl.innerHTML = `
-          <div class="bk-pick-label">Cote retenue : <strong>${pickLabel}</strong> — ${prono.pick}</div>
+      if (prono.odds_are_real && bkEntries.length) {
+        const pickKey   = prono.pick_key || 'home';
+        const pickLabel = { home: '1', draw: 'N', away: '2', over25: '+2.5', btts: 'BTTS' }[pickKey] || pickKey;
+        const bkCotes   = bkEntries.map(([name, odds]) => ({ name, cote: odds[pickKey] || odds.home })).filter(b => b.cote);
+        const avg       = bkCotes.reduce((s, b) => s + b.cote, 0) / (bkCotes.length || 1);
+        const maxCote   = Math.max(...bkCotes.map(b => b.cote));
+        bkEl.innerHTML  = `
+          <div class="bk-pick-label">Marché : <strong>${pickLabel}</strong> — ${prono.pick}</div>
           ${bkCotes.map(({ name, cote }) =>
             `<div class="bk-row">
               <span class="bk-name">${name}</span>
               <span class="bk-cote-single ${cote === maxCote ? 'best' : ''}">${cote.toFixed(2)}</span>
-            </div>`
-          ).join('')}`;
-
-        document.getElementById('avgCote').textContent = avgStr;
+            </div>`).join('')}`;
+        if (bkAvgEl) bkAvgEl.textContent = avg.toFixed(2);
+      } else {
+        bkEl.innerHTML = `<p style="font-size:12px;color:rgba(255,255,255,0.3);line-height:1.6">
+          Cotes en temps réel non disponibles pour ce match.<br>
+          La cote affichée est une estimation IA.
+        </p>`;
+        if (bkAvgEl) bkAvgEl.textContent = prono.cote_ia?.toFixed(2) || '—';
       }
 
       // Stats équipes (backend retourne team_stats)
