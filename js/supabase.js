@@ -71,9 +71,14 @@ async function signOut() {
   const client = initSupabase();
   if (!client) return;
   await client.auth.signOut();
-  // Chemin relatif compatible Netlify
-  const depth = window.location.pathname.split('/').length - 2;
-  window.location.href = depth > 0 ? '../'.repeat(depth) + 'index.html' : 'index.html';
+  // Remonter jusqu'à la racine du projet (compatible GitHub Pages et Netlify)
+  const parts = window.location.pathname.split('/').filter(Boolean);
+  // Sur GitHub Pages : /dubble-bet-/pages/dashboard.html → root = /dubble-bet-/
+  // Sur Netlify/local : /pages/dashboard.html → root = /
+  const root = parts.length > 1
+    ? '/' + parts[0] + '/index.html'
+    : '/index.html';
+  window.location.href = root;
 }
 
 async function getSession() {
