@@ -105,13 +105,19 @@ function onAuthChange(callback) {
 }
 
 // Redirige vers login si non authentifié
+// Utilise getUser() (requête serveur) pour détecter les comptes supprimés
 async function requireAuth(redirectTo = '/pages/login.html') {
-  const session = await getSession();
-  if (!session) {
+  const client = initSupabase();
+  if (!client) { window.location.href = redirectTo; return null; }
+  const { data, error } = await client.auth.getUser();
+  if (error || !data.user) {
+    // Compte inexistant ou token invalide → purger la session locale
+    await client.auth.signOut().catch(() => {});
+    sessionStorage.clear();
     window.location.href = redirectTo;
     return null;
   }
-  return session;
+  return data.user;
 }
 
 // ===================================================
