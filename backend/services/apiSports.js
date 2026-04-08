@@ -27,15 +27,17 @@ function getApiSportsClient(sport) {
 
 // ─── The Odds API — clés sport ───────────────────────
 const ODDS_API_SPORT_KEYS = {
-  'Premier League':   'soccer_england_premier_league',
+  'Premier League':   'soccer_epl',
   'La Liga':          'soccer_spain_la_liga',
   'Bundesliga':       'soccer_germany_bundesliga',
   'Serie A':          'soccer_italy_serie_a',
-  'Ligue 1':          'soccer_france_ligue1',
+  'Ligue 1':          'soccer_france_ligue_one',
   'Champions League': 'soccer_uefa_champs_league',
   'NBA':              'basketball_nba',
+  'Euroleague':       'basketball_euroleague',
   'UFC':              'mma_mixed_martial_arts',
   'Bellator':         'mma_mixed_martial_arts',
+  'Boxe':             'boxing_boxing',
 };
 
 // ─── Noms bookmakers (The Odds API key → libellé) ────
@@ -44,6 +46,9 @@ const BK_LABELS = {
   winamax: 'Winamax', pinnacle: 'Pinnacle', betfair: 'Betfair',
   williamhill: 'William Hill', bwin: 'Bwin', ladbrokes_eu: 'Ladbrokes',
   draftkings: 'DraftKings', fanduel: 'FanDuel', bovada: 'Bovada',
+  '1xbet': '1xBet', '888sport': '888sport', marathonbet: 'Marathonbet',
+  betsson: 'Betsson', nordicbet: 'NordicBet', coolbet: 'Coolbet',
+  tipico_de: 'Tipico', betway: 'Betway', suprabets: 'Suprabets',
 };
 
 // ─── Cache The Odds API (5 min par sport/date) ────────
