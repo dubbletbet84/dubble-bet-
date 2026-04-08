@@ -338,45 +338,22 @@ router.get('/debug-sports', async (req, res) => {
 });
 
 // ─── GET /api/pronos/debug-odds ──────────────────────
-// Teste The Odds API sur Ligue 1 et Premier League
 router.get('/debug-odds', async (req, res) => {
   const axios = require('axios');
   const key   = process.env.ODDS_API_KEY;
   if (!key) return res.json({ error: 'ODDS_API_KEY manquante sur Railway' });
 
-  const today = new Date().toISOString().slice(0, 10);
-  const checks = [
-    { label: 'Ligue 1',        sport: 'soccer_france_ligue1' },
-    { label: 'Premier League', sport: 'soccer_england_premier_league' },
-    { label: 'NBA',            sport: 'basketball_nba' },
-  ];
-
-  const results = [];
-  for (const c of checks) {
-    try {
-      const { data, headers } = await axios.get(`https://api.the-odds-api.com/v4/sports/${c.sport}/odds/`, {
-        params: { apiKey: key, regions: 'eu', markets: 'h2h,totals', oddsFormat: 'decimal',
-                  commenceTimeFrom: `${today}T00:00:00Z`, commenceTimeTo: `${today}T23:59:59Z` },
-        timeout: 8000,
-      });
-      results.push({
-        label:            c.label,
-        events_found:     data.length,
-        requests_used:    headers['x-requests-used'],
-        requests_remaining: headers['x-requests-remaining'],
-        sample: data.slice(0, 1).map(e => ({
-          match:       `${e.home_team} vs ${e.away_team}`,
-          bookmakers:  e.bookmakers.slice(0, 2).map(b => ({
-            name: b.title,
-            h2h:  b.markets.find(m => m.key === 'h2h')?.outcomes.map(o => `${o.name}: ${o.price}`),
-          })),
-        })),
-      });
-    } catch (err) {
-      results.push({ label: c.label, error: err.response?.data?.message || err.message });
-    }
+  try {
+    // Lister tous les sports disponibles avec cette clé
+    const { data: sports } = await axios.get('https://api.the-odds-api.com/v4/sports/', {
+      params: { apiKey: key },
+      timeout: 8000,
+    });
+    const active = sports.filter(s => s.active).map(s => ({ key: s.key, title: s.title, group: s.group }));
+    res.json({ key_prefix: key.slice(0, 8) + '...', total_active: active.length, sports: active });
+  } catch (err) {
+    res.json({ error: err.response?.data?.message || err.message });
   }
-  res.json({ key_prefix: key.slice(0, 8) + '...', today, results });
 });
 
 module.exports = router;
