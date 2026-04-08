@@ -63,16 +63,30 @@
         <button class="sport-btn" data-sport="boxe"      onclick="selectSport(this)">🥊 Boxe</button>
       </div>
 
-      <div class="sidebar-user" id="sidebarUser">
+      <div class="sidebar-user" id="sidebarUser" onclick="toggleUserMenu()" style="cursor:pointer">
         <div class="user-avatar" id="userAvatar">?</div>
         <div class="user-info">
           <div class="user-name" id="userName">Chargement...</div>
           <div class="user-plan" id="userPlan">Plan Pro</div>
         </div>
-        <button class="logout-btn" onclick="window.DB.signOut()" title="Déconnexion">⏻</button>
+        <span class="user-menu-chevron" id="userMenuChevron">▾</span>
       </div>
 
-      <button class="delete-account-btn" onclick="confirmDeleteAccount()">Supprimer mon compte</button>
+      <!-- Menu compte -->
+      <div class="user-menu" id="userMenu">
+        <div class="user-menu-header" id="userMenuHeader">
+          <div class="um-email" id="umEmail">—</div>
+          <div class="um-plan" id="umPlan">—</div>
+          <div class="um-quota" id="umQuota">—</div>
+        </div>
+        <div class="user-menu-divider"></div>
+        <button class="user-menu-item" onclick="window.DB.signOut()">
+          <span>⏻</span> Déconnexion
+        </button>
+        <button class="user-menu-item danger" onclick="confirmDeleteAccount()">
+          <span>🗑</span> Supprimer mon compte
+        </button>
+      </div>
     </aside>
 
     <!-- MAIN CONTENT -->
@@ -313,6 +327,7 @@
       const email = user.email || '';
       let name  = user.user_metadata?.full_name || email.split('@')[0] || 'Utilisateur';
       let plan  = 'pro';
+      let quota = null;
       const planLabel = { starter:'Starter', pro:'Plan Pro', expert:'Expert', illimite:'Illimité', unit:'À l\'unité' };
 
       // Fetch profil réel depuis le backend
@@ -320,12 +335,42 @@
         const me = await window.App.callAPI('/auth/me');
         if (me?.profile?.plan) plan = me.profile.plan;
         if (me?.user?.name)    name = me.user.name;
+        if (me?.quota)         quota = me.quota;
       } catch (e) { /* fallback silencieux */ }
 
       document.getElementById('userName').textContent   = name;
       document.getElementById('userPlan').textContent   = planLabel[plan] || 'Plan Pro';
       document.getElementById('userAvatar').textContent = name.charAt(0).toUpperCase();
+
+      // Remplir le menu compte
+      document.getElementById('umEmail').textContent = email;
+      document.getElementById('umPlan').textContent  = `Plan : ${planLabel[plan] || plan}`;
+      if (quota) {
+        const max = quota.max === -1 ? '∞' : quota.max;
+        document.getElementById('umQuota').textContent = `Pronos cette semaine : ${quota.used} / ${max}`;
+      }
+
       return plan;
+    }
+
+    function toggleUserMenu() {
+      const menu    = document.getElementById('userMenu');
+      const chevron = document.getElementById('userMenuChevron');
+      const open    = menu.classList.toggle('open');
+      chevron.textContent = open ? '▴' : '▾';
+      if (open) {
+        // Fermer si clic en dehors
+        setTimeout(() => {
+          document.addEventListener('click', function closeMenu(e) {
+            if (!document.getElementById('sidebarUser').contains(e.target) &&
+                !menu.contains(e.target)) {
+              menu.classList.remove('open');
+              chevron.textContent = '▾';
+              document.removeEventListener('click', closeMenu);
+            }
+          });
+        }, 0);
+      }
     }
 
     async function loadUserStats(userId) {
