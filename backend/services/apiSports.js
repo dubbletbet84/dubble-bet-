@@ -359,6 +359,9 @@ function getDemoStats(fixture) {
   };
 }
 
+// ─── Cache fixtures football (10 min pour éviter 429) ──
+const _fixturesCache = {};
+
 // ─── getFootballFixtures ──────────────────────────────
 async function getFootballFixtures(league, date) {
   const competitionId = FOOTBALL_LEAGUE_IDS[league];
@@ -366,6 +369,14 @@ async function getFootballFixtures(league, date) {
     console.warn(`[apiSports] Football: pas de clé ou ligue inconnue (${league}) — démo`);
     return getDemoFixtures('football', league);
   }
+
+  // Cache 10 min : évite le 429 (10 req/min sur plan gratuit)
+  const cacheKey = `${league}_${date}`;
+  const now = Date.now();
+  if (_fixturesCache[cacheKey] && now - _fixturesCache[cacheKey].ts < 600_000) {
+    return _fixturesCache[cacheKey].data;
+  }
+
   try {
     const client = getFootballClient();
     const { data } = await client.get(`/competitions/${competitionId}/matches`, {
@@ -374,9 +385,11 @@ async function getFootballFixtures(league, date) {
     const matches = data.matches || [];
     if (!matches.length) {
       console.warn(`[apiSports] Football: aucun match ${league} le ${date} — démo`);
-      return getDemoFixtures('football', league);
+      const demo = getDemoFixtures('football', league);
+      _fixturesCache[cacheKey] = { ts: now, data: demo };
+      return demo;
     }
-    return matches.map(m => ({
+    const result = matches.map(m => ({
       id:       m.id,
       isDemo:   false,
       sport:    'football',
@@ -387,8 +400,12 @@ async function getFootballFixtures(league, date) {
       venue:    m.venue || '',
       status:   m.status,
     }));
+    _fixturesCache[cacheKey] = { ts: now, data: result };
+    return result;
   } catch (err) {
     console.error('[apiSports/getFootballFixtures]', err.message);
+    // En cas de 429 ou autre erreur : retourner le cache expiré si dispo, sinon démo
+    if (_fixturesCache[cacheKey]) return _fixturesCache[cacheKey].data;
     return getDemoFixtures('football', league);
   }
 }

@@ -28,19 +28,20 @@ const ALT_LEAGUES = {
   boxe:       ['UFC'],
 };
 
-// ─── Helper : vérifie si une ligue peut générer un prono ─
-// Toujours vrai si des fixtures existent (réelles ou démo)
+// ─── Helper : vérifie si une ligue a de vrais matchs ce jour ─
 async function hasRealMatches(sport, league, date) {
   const fixtures = await apiSports.getFixtures({ sport, league, date });
-  return fixtures.length > 0;
+  if (!fixtures.length) return false;
+  if (sport === 'football') return !fixtures[0].isDemo;
+  return true;
 }
 
 // ─── Helper : analyser un lot de matchs et retourner le meilleur pick ─
 async function findBestPick(sport, league, date) {
   let fixtures = await apiSports.getFixtures({ sport, league, date });
-  // Accepter les démos pour tous les sports : si pas de vrai match ce jour,
-  // on génère quand même un prono basé sur des données simulées réalistes
   if (!fixtures.length) return null;
+  // Football : uniquement des vrais matchs (pas de démo)
+  if (sport === 'football' && fixtures[0].isDemo) return null;
 
   const enriched = await Promise.all(
     fixtures.slice(0, 3).map(async (fixture) => {
