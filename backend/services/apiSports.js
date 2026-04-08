@@ -380,7 +380,7 @@ async function getFootballFixtures(league, date) {
   try {
     const client = getFootballClient();
     const { data } = await client.get(`/competitions/${competitionId}/matches`, {
-      params: { dateFrom: date, dateTo: date, status: 'SCHEDULED,TIMED,IN_PLAY,PAUSED' },
+      params: { dateFrom: date, dateTo: date },
     });
     const matches = data.matches || [];
     if (!matches.length) {
