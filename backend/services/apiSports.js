@@ -41,6 +41,20 @@ const BASKETBALL_LEAGUE_IDS = {
   'Euroleague': 120,
 };
 
+// ─── Générateur pseudo-aléatoire déterministe (seed) ─
+// Même seed → mêmes valeurs (reproductible), seeds différents → valeurs différentes
+function seededRand(seed, min, max, decimals = 1) {
+  const x = Math.sin(seed * 9301 + 49297) * 233280;
+  const r = x - Math.floor(x);
+  return parseFloat((min + r * (max - min)).toFixed(decimals));
+}
+
+// Seed composite : équipes + date (change chaque jour)
+function buildSeed(idA, idB, date) {
+  const datePart = date ? parseInt(date.replace(/-/g, '').slice(0, 8)) : 20240101;
+  return (idA * 1000 + idB * 7 + datePart) % 999983;
+}
+
 // ─── Données de démonstration ────────────────────────
 const DEMO_FIXTURES = {
   'Ligue 1':          [{ home: { id: 85,  name: 'Paris Saint-Germain' }, away: { id: 80,  name: 'Monaco' },               venue: 'Parc des Princes' }],
@@ -73,19 +87,151 @@ function getDemoFixtures(sport, league) {
   }];
 }
 
-function getDemoOdds() {
+function getDemoOdds(fixture) {
+  const hId = fixture?.homeTeam?.id || 1;
+  const aId = fixture?.awayTeam?.id || 2;
+  const date = fixture?.date ? fixture.date.slice(0, 10) : new Date().toISOString().slice(0, 10);
+  const s    = buildSeed(hId, aId, date);
+
+  // Cote domicile entre 1.50 et 3.80
+  const homeOdds = seededRand(s,       1.50, 3.80, 2);
+  const drawOdds = seededRand(s + 1,   2.80, 4.50, 2);
+  const awayOdds = seededRand(s + 2,   1.60, 5.00, 2);
+
+  // Légère variance entre bookmakers (±0.05 à ±0.12)
+  const v = (seed, base) => parseFloat((base + seededRand(seed, -0.12, 0.12, 2)).toFixed(2));
+
   return {
-    'Bet365': { home: 1.95, draw: 3.60, away: 4.20 },
-    'Unibet':  { home: 1.92, draw: 3.55, away: 4.30 },
-    'Betclic': { home: 1.96, draw: 3.65, away: 4.10 },
-    'Winamax': { home: 1.93, draw: 3.70, away: 4.25 },
+    'Bet365': { home: v(s + 10, homeOdds), draw: v(s + 11, drawOdds), away: v(s + 12, awayOdds) },
+    'Unibet':  { home: v(s + 20, homeOdds), draw: v(s + 21, drawOdds), away: v(s + 22, awayOdds) },
+    'Betclic': { home: v(s + 30, homeOdds), draw: v(s + 31, drawOdds), away: v(s + 32, awayOdds) },
+    'Winamax': { home: v(s + 40, homeOdds), draw: v(s + 41, drawOdds), away: v(s + 42, awayOdds) },
   };
 }
 
 function getDemoStats(fixture) {
+  const hId  = fixture?.homeTeam?.id || 1;
+  const aId  = fixture?.awayTeam?.id || 2;
+  const date = fixture?.date ? fixture.date.slice(0, 10) : new Date().toISOString().slice(0, 10);
+  const sport = fixture?.sport || 'football';
+  const s    = buildSeed(hId, aId, date);
+
+  const homeFormPct = Math.round(seededRand(s,      30, 88, 0));
+  const awayFormPct = Math.round(seededRand(s + 1,  25, 82, 0));
+
+  if (sport === 'basketball') {
+    return {
+      home: {
+        name: fixture.homeTeam?.name,
+        form: `${homeFormPct}%`,
+        points:   seededRand(s + 5,  95, 122, 1),
+        rebounds: seededRand(s + 6,  38, 52, 1),
+        assists:  seededRand(s + 7,  20, 32, 1),
+        back_to_back: seededRand(s + 8, 0, 1, 0),
+      },
+      away: {
+        name: fixture.awayTeam?.name,
+        form: `${awayFormPct}%`,
+        points:   seededRand(s + 15, 92, 118, 1),
+        rebounds: seededRand(s + 16, 36, 50, 1),
+        assists:  seededRand(s + 17, 18, 30, 1),
+        back_to_back: seededRand(s + 18, 0, 1, 0),
+      },
+    };
+  }
+
+  if (sport === 'mma') {
+    return {
+      home: {
+        name: fixture.homeTeam?.name,
+        form:               `${homeFormPct}%`,
+        ko_rate:            seededRand(s + 5,  0.25, 0.75, 2),
+        takedown_defense:   seededRand(s + 6,  0.45, 0.88, 2),
+        striking_accuracy:  seededRand(s + 7,  0.38, 0.62, 2),
+      },
+      away: {
+        name: fixture.awayTeam?.name,
+        form:               `${awayFormPct}%`,
+        ko_rate:            seededRand(s + 15, 0.20, 0.70, 2),
+        takedown_defense:   seededRand(s + 16, 0.42, 0.85, 2),
+        striking_accuracy:  seededRand(s + 17, 0.35, 0.60, 2),
+      },
+    };
+  }
+
+  if (sport === 'tennis') {
+    return {
+      home: {
+        name: fixture.homeTeam?.name,
+        form:               `${homeFormPct}%`,
+        aces:               seededRand(s + 5, 3, 14, 1),
+        first_serve_pct:    seededRand(s + 6, 55, 75, 1),
+        fatigue:            seededRand(s + 7, 0, 3, 0),
+      },
+      away: {
+        name: fixture.awayTeam?.name,
+        form:               `${awayFormPct}%`,
+        aces:               seededRand(s + 15, 2, 12, 1),
+        first_serve_pct:    seededRand(s + 16, 52, 72, 1),
+        fatigue:            seededRand(s + 17, 0, 3, 0),
+      },
+    };
+  }
+
+  if (sport === 'rugby') {
+    return {
+      home: {
+        name: fixture.homeTeam?.name,
+        form:      `${homeFormPct}%`,
+        points:    seededRand(s + 5, 14, 38, 1),
+        penalties: seededRand(s + 6, 5, 14, 0),
+        scrum_win: seededRand(s + 7, 0.45, 0.80, 2),
+      },
+      away: {
+        name: fixture.awayTeam?.name,
+        form:      `${awayFormPct}%`,
+        points:    seededRand(s + 15, 12, 34, 1),
+        penalties: seededRand(s + 16, 6, 15, 0),
+        scrum_win: seededRand(s + 17, 0.42, 0.75, 2),
+      },
+    };
+  }
+
+  if (sport === 'boxe') {
+    return {
+      home: {
+        name: fixture.homeTeam?.name,
+        form:    `${homeFormPct}%`,
+        ko_rate: seededRand(s + 5,  0.30, 0.75, 2),
+        reach:   seededRand(s + 6,  168, 200, 0),
+        wins:    seededRand(s + 7,  8, 30, 0),
+      },
+      away: {
+        name: fixture.awayTeam?.name,
+        form:    `${awayFormPct}%`,
+        ko_rate: seededRand(s + 15, 0.25, 0.70, 2),
+        reach:   seededRand(s + 16, 165, 198, 0),
+        wins:    seededRand(s + 17, 7, 28, 0),
+      },
+    };
+  }
+
+  // Football (défaut)
   return {
-    home: { name: fixture.homeTeam?.name, form: '75%', goals: 2.1, xg: 1.9, possession: 56 },
-    away: { name: fixture.awayTeam?.name, form: '45%', goals: 1.3, xg: 1.1, possession: 44 },
+    home: {
+      name:      fixture.homeTeam?.name,
+      form:      `${homeFormPct}%`,
+      goals:     seededRand(s + 5,  0.7, 2.9, 2),
+      xg:        seededRand(s + 6,  0.6, 2.6, 2),
+      possession:Math.round(seededRand(s + 7, 38, 65, 0)),
+    },
+    away: {
+      name:      fixture.awayTeam?.name,
+      form:      `${awayFormPct}%`,
+      goals:     seededRand(s + 15, 0.6, 2.6, 2),
+      xg:        seededRand(s + 16, 0.5, 2.3, 2),
+      possession:Math.round(seededRand(s + 17, 35, 62, 0)),
+    },
   };
 }
 
@@ -205,7 +351,6 @@ async function getFixtures({ sport = 'football', league, date }) {
 }
 
 // ─── getTeamStats ─────────────────────────────────────
-// football-data.org plan gratuit sans stats détaillées → démo pour tous les sports
 async function getTeamStats(fixture) {
   return getDemoStats(fixture);
 }
@@ -216,8 +361,8 @@ async function getInjuries() {
 }
 
 // ─── getOdds ──────────────────────────────────────────
-async function getOdds() {
-  return getDemoOdds();
+async function getOdds(fixture) {
+  return getDemoOdds(fixture);
 }
 
 module.exports = { getFixtures, getTeamStats, getInjuries, getOdds, getDemoFixtures };
