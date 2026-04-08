@@ -55,7 +55,7 @@ async function findBestPick(sport, league, date) {
   );
 
   const predictions = await Promise.all(enriched.map(f => prediction.predict(f)));
-  const validPicks  = predictions.filter(p => p.cote_marche >= 1.90);
+  const validPicks  = predictions.filter(p => p.cote_marche >= 1.10);
   if (!validPicks.length) return null;
   return validPicks.sort((a, b) => b.value - a.value)[0];
 }
