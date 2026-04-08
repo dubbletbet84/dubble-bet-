@@ -119,5 +119,56 @@ router.post('/create-profile', async (req, res) => {
   }
 });
 
+// ─── DELETE /api/auth/account ────────────────────────
+// Supprime le compte complètement (auth.users + profiles + pronos)
+router.delete('/account', requireAuth, async (req, res) => {
+  const userId = req.user.id;
+  try {
+    // Supprimer les données utilisateur (RLS bypass via service role)
+    await supabase.from('pronostics').delete().eq('user_id', userId);
+    await supabase.from('profiles').delete().eq('id', userId);
+    // Supprimer l'utilisateur Supabase Auth
+    const { error } = await supabase.auth.admin.deleteUser(userId);
+    if (error) throw error;
+    res.json({ success: true });
+  } catch (err) {
+    console.error('[delete-account]', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── POST /api/auth/cleanup-orphan ───────────────────
+// Si l'utilisateur existe dans auth.users mais pas dans profiles
+// (compte à moitié supprimé), supprime l'auth user pour permettre la re-inscription
+router.post('/cleanup-orphan', async (req, res) => {
+  const { email } = req.body;
+  if (!email) return res.status(400).json({ error: 'email requis' });
+
+  try {
+    // Chercher l'utilisateur par email via admin API
+    const { data: { users }, error: listErr } = await supabase.auth.admin.listUsers();
+    if (listErr) throw listErr;
+
+    const authUser = users.find(u => u.email === email);
+    if (!authUser) return res.json({ status: 'not_found' });
+
+    // Vérifier si un profil existe
+    const { data: profile } = await supabase
+      .from('profiles').select('id').eq('id', authUser.id).single();
+
+    if (profile) {
+      // Profil existe → compte actif, ne pas toucher
+      return res.json({ status: 'active' });
+    }
+
+    // Pas de profil → orphelin → supprimer l'auth user
+    await supabase.auth.admin.deleteUser(authUser.id);
+    res.json({ status: 'cleaned' });
+  } catch (err) {
+    console.error('[cleanup-orphan]', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 module.exports = router;
 module.exports.requireAuth = requireAuth;
