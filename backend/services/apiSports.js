@@ -25,6 +25,121 @@ function getApiSportsClient(sport) {
   });
 }
 
+// ─── The Odds API — clés sport ───────────────────────
+const ODDS_API_SPORT_KEYS = {
+  'Premier League':   'soccer_england_premier_league',
+  'La Liga':          'soccer_spain_la_liga',
+  'Bundesliga':       'soccer_germany_bundesliga',
+  'Serie A':          'soccer_italy_serie_a',
+  'Ligue 1':          'soccer_france_ligue1',
+  'Champions League': 'soccer_uefa_champs_league',
+  'NBA':              'basketball_nba',
+  'UFC':              'mma_mixed_martial_arts',
+  'Bellator':         'mma_mixed_martial_arts',
+};
+
+// ─── Noms bookmakers (The Odds API key → libellé) ────
+const BK_LABELS = {
+  bet365: 'Bet365', unibet_eu: 'Unibet', betclic: 'Betclic',
+  winamax: 'Winamax', pinnacle: 'Pinnacle', betfair: 'Betfair',
+  williamhill: 'William Hill', bwin: 'Bwin', ladbrokes_eu: 'Ladbrokes',
+  draftkings: 'DraftKings', fanduel: 'FanDuel', bovada: 'Bovada',
+};
+
+// ─── Cache The Odds API (5 min par sport/date) ────────
+const _oddsCache = {};
+
+// ─── Normalisation nom d'équipe pour matching ─────────
+function normTeam(s) {
+  return (s || '').toLowerCase()
+    .replace(/\bfc\b|\bsc\b|\bac\b|\brc\b|\bsporting\b/g, '')
+    .replace(/[^a-z0-9]/g, '')
+    .trim();
+}
+
+// ─── Récupérer les vraies cotes via The Odds API ─────
+async function fetchTheOddsApi(sportKey, date) {
+  const key = process.env.ODDS_API_KEY;
+  if (!key || !sportKey) return null;
+
+  const cacheKey = `${sportKey}_${date}`;
+  const now = Date.now();
+  if (_oddsCache[cacheKey] && now - _oddsCache[cacheKey].ts < 300_000) {
+    return _oddsCache[cacheKey].data;
+  }
+
+  try {
+    const { data } = await axios.get(`https://api.the-odds-api.com/v4/sports/${sportKey}/odds/`, {
+      params: {
+        apiKey:            key,
+        regions:           'eu',
+        markets:           'h2h,totals',
+        oddsFormat:        'decimal',
+        commenceTimeFrom:  `${date}T00:00:00Z`,
+        commenceTimeTo:    `${date}T23:59:59Z`,
+      },
+      timeout: 8000,
+    });
+    _oddsCache[cacheKey] = { ts: now, data };
+    return data;
+  } catch (err) {
+    console.warn('[odds] The Odds API error:', err.response?.status, err.message);
+    return null;
+  }
+}
+
+function buildOddsFromEvent(event) {
+  const result = {};
+  for (const bk of (event.bookmakers || [])) {
+    const label = BK_LABELS[bk.key] || bk.title;
+    const h2h    = bk.markets?.find(m => m.key === 'h2h');
+    const totals = bk.markets?.find(m => m.key === 'totals');
+    if (!h2h) continue;
+
+    const homePrice = h2h.outcomes.find(o => o.name === event.home_team)?.price;
+    const awayPrice = h2h.outcomes.find(o => o.name === event.away_team)?.price;
+    const drawPrice = h2h.outcomes.find(o => o.name === 'Draw')?.price;
+    const over25    = totals?.outcomes.find(o => o.name === 'Over'  && Math.abs(o.point - 2.5) < 0.01)?.price;
+    const btts      = bk.markets?.find(m => m.key === 'btts')?.outcomes?.find(o => o.name === 'Yes')?.price;
+
+    if (!homePrice || !awayPrice) continue;
+    result[label] = {
+      home:  parseFloat(homePrice.toFixed(2)),
+      draw:  drawPrice ? parseFloat(drawPrice.toFixed(2)) : null,
+      away:  parseFloat(awayPrice.toFixed(2)),
+      ...(over25 ? { over25: parseFloat(over25.toFixed(2)) } : {}),
+      ...(btts   ? { btts:   parseFloat(btts.toFixed(2))   } : {}),
+    };
+  }
+  return Object.keys(result).length ? result : null;
+}
+
+async function getRealOdds(fixture) {
+  const sportKey = ODDS_API_SPORT_KEYS[fixture.league];
+  const date     = (fixture.date || '').slice(0, 10);
+  if (!sportKey || !date || fixture.isDemo) return null;
+
+  const events = await fetchTheOddsApi(sportKey, date);
+  if (!events?.length) return null;
+
+  const homeNorm = normTeam(fixture.homeTeam?.name);
+  const awayNorm = normTeam(fixture.awayTeam?.name);
+
+  const event = events.find(e => {
+    const h = normTeam(e.home_team);
+    const a = normTeam(e.away_team);
+    return (h.includes(homeNorm) || homeNorm.includes(h) || homeNorm.includes(h.slice(0, 5))) &&
+           (a.includes(awayNorm) || awayNorm.includes(a) || awayNorm.includes(a.slice(0, 5)));
+  });
+
+  if (!event) {
+    console.warn(`[odds] Aucun événement trouvé pour ${fixture.homeTeam?.name} vs ${fixture.awayTeam?.name}`);
+    return null;
+  }
+
+  return buildOddsFromEvent(event);
+}
+
 // ─── IDs compétitions football-data.org ──────────────
 const FOOTBALL_LEAGUE_IDS = {
   'Premier League':   'PL',
@@ -420,6 +535,11 @@ async function getInjuries() {
 
 // ─── getOdds ──────────────────────────────────────────
 async function getOdds(fixture) {
+  const real = await getRealOdds(fixture);
+  if (real) {
+    console.log(`[odds] Vraies cotes récupérées pour ${fixture.homeTeam?.name} vs ${fixture.awayTeam?.name}`);
+    return real;
+  }
   return getDemoOdds(fixture);
 }
 
