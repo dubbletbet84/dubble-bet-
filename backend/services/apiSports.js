@@ -350,8 +350,62 @@ async function getFixtures({ sport = 'football', league, date }) {
   return getDemoFixtures(sport, league);
 }
 
+// ─── Cache classements (TTL 10 min) ──────────────────
+const _standingsCache = {};
+async function fetchStandings(competitionId) {
+  const now = Date.now();
+  if (_standingsCache[competitionId] && now - _standingsCache[competitionId].ts < 600_000) {
+    return _standingsCache[competitionId].data;
+  }
+  const client = getFootballClient();
+  const { data } = await client.get(`/competitions/${competitionId}/standings`);
+  const table = (data.standings || []).find(s => s.type === 'TOTAL')?.table || [];
+  _standingsCache[competitionId] = { ts: now, data: table };
+  return table;
+}
+
 // ─── getTeamStats ─────────────────────────────────────
 async function getTeamStats(fixture) {
+  // Pour le football : vraies stats depuis les classements
+  if (fixture.sport === 'football' && process.env.FOOTBALL_DATA_KEY && !fixture.isDemo) {
+    const compId = FOOTBALL_LEAGUE_IDS[fixture.league];
+    if (compId) {
+      try {
+        const table = await fetchStandings(compId);
+        const findTeam = id => table.find(row => row.team.id === id);
+        const hRow = findTeam(fixture.homeTeam?.id);
+        const aRow = findTeam(fixture.awayTeam?.id);
+
+        if (hRow && aRow) {
+          const toStats = (row, name) => {
+            const played = row.playedGames || 1;
+            const formPct = Math.round(((row.won || 0) + (row.draw || 0) * 0.5) / played * 100);
+            const goals   = parseFloat(((row.goalsFor || 0) / played).toFixed(2));
+            const conceded= parseFloat(((row.goalsAgainst || 0) / played).toFixed(2));
+            return {
+              name,
+              form:         `${formPct}%`,
+              goals,
+              goals_against: conceded,
+              position:     row.position,
+              played,
+              won:          row.won || 0,
+              draw:         row.draw || 0,
+              lost:         row.lost || 0,
+              points:       row.points || 0,
+            };
+          };
+          return {
+            home: toStats(hRow, fixture.homeTeam?.name),
+            away: toStats(aRow, fixture.awayTeam?.name),
+          };
+        }
+      } catch (err) {
+        console.warn('[apiSports/getTeamStats] standings failed, fallback démo:', err.message);
+      }
+    }
+  }
+  // Autres sports ou fallback → démo seedé
   return getDemoStats(fixture);
 }
 

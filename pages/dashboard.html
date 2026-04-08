@@ -510,19 +510,39 @@
         document.getElementById('avgCote').textContent = avgStr;
       }
 
-      // Stats équipes (backend retourne team_stats, démo retourne teamStats)
+      // Stats équipes (backend retourne team_stats)
       const tsEl = document.getElementById('teamStatsContent');
       const teamStats = prono.team_stats || prono.teamStats;
       if (teamStats) {
         const { home, away } = teamStats;
-        const rows = [
-          ['Forme récente', home.form || '—', away.form || '—'],
-          ['Buts / match',  home.goals || '—', away.goals || '—'],
-          ['xG moyen',      home.xg || '—', away.xg || '—'],
-        ];
+        const isReal = home.position != null; // stats réelles si position disponible
+
+        // Lignes communes
+        const rows = [['Forme récente', home.form || '—', away.form || '—']];
+
+        if (isReal) {
+          // Stats réelles depuis le classement
+          rows.push(
+            ['Position',      `${home.position}e`, `${away.position}e`],
+            ['Buts marqués',  `${home.goals}/m`, `${away.goals}/m`],
+            ['Buts encaissés',`${home.goals_against}/m`, `${away.goals_against}/m`],
+            ['V / N / D',     `${home.won}/${home.draw}/${home.lost}`, `${away.won}/${away.draw}/${away.lost}`],
+          );
+        } else {
+          // Stats simulées (autres sports)
+          if (home.goals   != null) rows.push(['Buts / match', home.goals || '—', away.goals || '—']);
+          if (home.xg      != null) rows.push(['xG moyen',     home.xg   || '—', away.xg   || '—']);
+          if (home.points  != null) rows.push(['Pts / match',  home.points || '—', away.points || '—']);
+          if (home.ko_rate != null) rows.push(['KO rate',      home.ko_rate || '—', away.ko_rate || '—']);
+        }
+
+        const sourceLabel = isReal
+          ? '<span style="font-size:11px;color:rgba(255,255,255,0.3);float:right">Données réelles · football-data.org</span>'
+          : '<span style="font-size:11px;color:rgba(255,255,255,0.3);float:right">Données simulées</span>';
+
         tsEl.innerHTML = `
           <div class="team-stat-row" style="margin-bottom:14px">
-            <span class="ts-label"></span>
+            <span class="ts-label">${sourceLabel}</span>
             <div class="ts-vals">
               <span class="ts-val home">${home.name}</span>
               <span class="ts-val away">${away.name}</span>

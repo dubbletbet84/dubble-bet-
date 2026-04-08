@@ -71,8 +71,16 @@ function predictFootball(data) {
   const hs       = stats.home || {};
   const as_      = stats.away || {};
 
-  let homeXg = parseFloat(hs.xg || hs.goals || 1.4);
-  let awayXg = parseFloat(as_.xg || as_.goals || 1.1);
+  // Si stats réelles (classement), utiliser buts marqués/encaissés comme proxy xG
+  // Sinon utiliser les valeurs simulées
+  const homeGoalsFor  = parseFloat(hs.goals || 1.4);
+  const awayGoalsFor  = parseFloat(as_.goals || 1.1);
+  const homeGoalsAga  = parseFloat(hs.goals_against || 1.1);
+  const awayGoalsAga  = parseFloat(as_.goals_against || 1.3);
+
+  // xG domicile = moyenne buts marqués × attaque adverse (buts encaissés)
+  let homeXg = (homeGoalsFor + awayGoalsAga) / 2;
+  let awayXg = (awayGoalsFor + homeGoalsAga) / 2;
 
   const homeForm = parseForm(hs.form || '50%');
   const awayForm = parseForm(as_.form || '50%');
@@ -114,10 +122,13 @@ function predictFootball(data) {
   const value      = calcValue(coteIA, coteMarche);
   const confidence = calcConfidence(proba, value, homeInjured * 0.05);
 
+  const isRealStats = hs.position != null;
   const factors = [];
   if (homeForm > 0.65)    factors.push(`${home.name} en grande forme (${Math.round(homeForm * 100)}%)`);
   if (awayForm < 0.40)    factors.push(`${away.name} en difficulté (${Math.round(awayForm * 100)}%)`);
-  if (homeXg > 2.0)       factors.push(`Attaque domicile prolifique (${homeXg.toFixed(1)} xG)`);
+  if (isRealStats && hs.position <= 3)  factors.push(`${home.name} — ${hs.position}e au classement`);
+  if (isRealStats && as_.position >= 12) factors.push(`${away.name} — ${as_.position}e au classement`);
+  if (homeGoalsFor > 2.0) factors.push(`Attaque domicile prolifique (${homeGoalsFor.toFixed(1)} buts/m)`);
   if (awayInjured >= 2)   factors.push(`${awayInjured} absents clés côté visiteur`);
   if (!factors.length)    factors.push('Analyse des cotes favorable', 'Données historiques positives');
 
