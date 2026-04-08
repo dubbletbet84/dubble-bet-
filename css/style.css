@@ -645,8 +645,18 @@ button { cursor: pointer; font-family: var(--font-body); }
   border-radius: var(--radius); padding: 14px 20px; text-align: right;
 }
 .analysis-pick-label { font-size: 11px; color: rgba(255,255,255,0.35); text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: 6px; }
-.analysis-pick-val   { font-family: var(--font-display); font-size: 22px; color: var(--green-light); letter-spacing: 1px; }
+.bet-type-badge { display: inline-block; font-size: 11px; font-weight: 700; color: var(--yellow); background: rgba(255,200,0,0.1); border: 1px solid rgba(255,200,0,0.2); border-radius: 20px; padding: 2px 10px; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 6px; }
+.analysis-pick-val   { font-family: var(--font-display); font-size: 20px; color: var(--green-light); letter-spacing: 1px; }
 .analysis-pick-cote  { font-family: var(--font-display); font-size: 32px; color: var(--yellow); letter-spacing: 1px; }
+
+/* Alternatives */
+.alternatives-section { background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.06); border-radius: var(--radius); padding: 16px 22px; margin-bottom: 24px; }
+.alt-title { font-size: 11px; font-weight: 700; color: rgba(255,255,255,0.35); text-transform: uppercase; letter-spacing: 2px; margin-bottom: 12px; }
+.alt-picks { display: flex; gap: 10px; flex-wrap: wrap; }
+.alt-pick-chip { display: flex; align-items: center; gap: 8px; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); border-radius: 8px; padding: 8px 14px; }
+.alt-type  { font-size: 11px; color: rgba(255,255,255,0.4); text-transform: uppercase; letter-spacing: 0.5px; }
+.alt-label { font-size: 13px; color: var(--white); font-weight: 600; }
+.alt-cote  { font-size: 13px; color: var(--yellow); font-weight: 700; }
 
 .analysis-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 24px; }
 

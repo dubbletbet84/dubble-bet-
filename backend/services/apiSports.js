@@ -101,11 +101,15 @@ function getDemoOdds(fixture) {
   // Légère variance entre bookmakers (±0.05 à ±0.12)
   const v = (seed, base) => parseFloat((base + seededRand(seed, -0.12, 0.12, 2)).toFixed(2));
 
+  // Over/Under 2.5 et BTTS — plages réalistes de marché
+  const over25Base = seededRand(s + 3, 1.58, 2.20, 2);
+  const bttsBase   = seededRand(s + 4, 1.50, 2.05, 2);
+
   return {
-    'Bet365': { home: v(s + 10, homeOdds), draw: v(s + 11, drawOdds), away: v(s + 12, awayOdds) },
-    'Unibet':  { home: v(s + 20, homeOdds), draw: v(s + 21, drawOdds), away: v(s + 22, awayOdds) },
-    'Betclic': { home: v(s + 30, homeOdds), draw: v(s + 31, drawOdds), away: v(s + 32, awayOdds) },
-    'Winamax': { home: v(s + 40, homeOdds), draw: v(s + 41, drawOdds), away: v(s + 42, awayOdds) },
+    'Bet365': { home: v(s+10, homeOdds), draw: v(s+11, drawOdds), away: v(s+12, awayOdds), over25: v(s+13, over25Base), btts: v(s+14, bttsBase) },
+    'Unibet':  { home: v(s+20, homeOdds), draw: v(s+21, drawOdds), away: v(s+22, awayOdds), over25: v(s+23, over25Base), btts: v(s+24, bttsBase) },
+    'Betclic': { home: v(s+30, homeOdds), draw: v(s+31, drawOdds), away: v(s+32, awayOdds), over25: v(s+33, over25Base), btts: v(s+34, bttsBase) },
+    'Winamax': { home: v(s+40, homeOdds), draw: v(s+41, drawOdds), away: v(s+42, awayOdds), over25: v(s+43, over25Base), btts: v(s+44, bttsBase) },
   };
 }
 
