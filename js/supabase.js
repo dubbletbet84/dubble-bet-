@@ -19,7 +19,13 @@ let _sbClient = null;
 function initSupabase() {
   if (_sbClient) return _sbClient;
   if (typeof window.supabase !== 'undefined' && window.supabase.createClient) {
-    _sbClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
+    _sbClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON, {
+      auth: {
+        storage:     window.sessionStorage, // session perdue à la fermeture de l'onglet
+        persistSession: true,
+        autoRefreshToken: true,
+      },
+    });
     return _sbClient;
   }
   console.warn('Supabase SDK non chargé. Assurez-vous d\'inclure le CDN Supabase.');
