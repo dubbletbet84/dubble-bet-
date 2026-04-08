@@ -71,6 +71,8 @@
         </div>
         <button class="logout-btn" onclick="window.DB.signOut()" title="Déconnexion">⏻</button>
       </div>
+
+      <button class="delete-account-btn" onclick="confirmDeleteAccount()">Supprimer mon compte</button>
     </aside>
 
     <!-- MAIN CONTENT -->
@@ -705,6 +707,21 @@
         </div>
       `;
       document.body.appendChild(panel);
+    }
+
+    async function confirmDeleteAccount() {
+      const ok = confirm('⚠️ Supprimer définitivement ton compte ?\n\nCette action est irréversible : tous tes pronostics et données seront effacés.');
+      if (!ok) return;
+
+      try {
+        await window.App.callAPI('/auth/account', { method: 'DELETE' });
+        await window.DB.signOut().catch(() => {});
+        sessionStorage.clear();
+        alert('Compte supprimé. À bientôt !');
+        window.location.href = '../index.html';
+      } catch (err) {
+        alert('Erreur lors de la suppression : ' + err.message);
+      }
     }
   </script>
 </body>

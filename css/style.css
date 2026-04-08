@@ -565,6 +565,8 @@ button { cursor: pointer; font-family: var(--font-body); }
 .user-plan  { font-size: 11px; color: var(--green); }
 .logout-btn { background: none; border: none; color: rgba(255,255,255,0.3); font-size: 16px; cursor: pointer; transition: color 0.2s; padding: 4px; }
 .logout-btn:hover { color: #ef5350; }
+.delete-account-btn { width: calc(100% - 24px); margin: 8px 12px 12px; background: none; border: 1px solid rgba(239,83,80,0.2); color: rgba(239,83,80,0.5); font-size: 12px; padding: 8px; border-radius: 8px; cursor: pointer; transition: all 0.2s; font-family: var(--font-body); }
+.delete-account-btn:hover { background: rgba(239,83,80,0.08); border-color: rgba(239,83,80,0.5); color: #ef5350; }
 
 /* DASHBOARD MAIN */
 .dashboard-main {
