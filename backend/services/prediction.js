@@ -131,39 +131,25 @@ function predictFootball(data) {
   const pX2 = pDraw + pAway;
 
   // ── Sélection du pick ─────────────────────────────────
-  // Avec cotes réelles → chercher la meilleure value
-  // Sans cotes réelles → logique basée sur les probabilités Poisson
+  // Toujours basé sur les probabilités Poisson (cohérence garantie avec les stats)
+  // Les cotes réelles sont utilisées pour l'affichage et le calcul du value,
+  // mais n'influencent PAS le pick choisi (évite les contradictions stats ↔ pick)
   let bestKey;
 
-  if (hasRealOdds) {
-    // Value = écart entre cote IA (fair) et cote du marché
-    const valueOf = (proba, mkt) => calcValue(probaToQuote(proba, 0.05), mkt);
-    const candidates = [
-      { k: 'home',   v: valueOf(pHome,   mktHome),   p: pHome   },
-      { k: 'away',   v: valueOf(pAway,   mktAway),   p: pAway   },
-      { k: 'over25', v: valueOf(pOver25, mktOver25), p: pOver25 },
-      { k: 'btts',   v: valueOf(pBTTS,   mktBTTS),   p: pBTTS   },
-    ].filter(c => c.p >= 0.30);
-    // Seulement proposer un pick si value positive
-    const withValue = candidates.filter(c => c.v > 0).sort((a, b) => b.v - a.v);
-    bestKey = (withValue[0] || candidates.sort((a, b) => b.p - a.p)[0])?.k || 'home';
+  if (pHome > 0.58) {
+    bestKey = 'home';
+  } else if (pAway > 0.50) {
+    bestKey = 'away';
+  } else if (totalXg > 2.9 && pOver25 > 0.58) {
+    bestKey = 'over25';
+  } else if (pBTTS > 0.62 && homeXg > 1.2 && awayXg > 1.0) {
+    bestKey = 'btts';
+  } else if (pHome > 0.43) {
+    bestKey = 'home';
+  } else if (pOver25 > 0.52 && totalXg > 2.5) {
+    bestKey = 'over25';
   } else {
-    // Logique pure : choisir le scénario le plus probable ET cohérent
-    if (pHome > 0.58) {
-      bestKey = 'home';
-    } else if (pAway > 0.50) {
-      bestKey = 'away';
-    } else if (totalXg > 2.9 && pOver25 > 0.58) {
-      bestKey = 'over25';
-    } else if (pBTTS > 0.62 && homeXg > 1.2 && awayXg > 1.0) {
-      bestKey = 'btts';
-    } else if (pHome > 0.43) {
-      bestKey = 'home';
-    } else if (pOver25 > 0.52 && totalXg > 2.5) {
-      bestKey = 'over25';
-    } else {
-      bestKey = 'home'; // fallback défensif
-    }
+    bestKey = 'home'; // fallback domicile (avantage terrain)
   }
 
   // ── Construction du résultat ──────────────────────────
