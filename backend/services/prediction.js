@@ -123,7 +123,7 @@ function predictFootball(data) {
 
   return {
     match: `${home.name || '?'} vs ${away.name || '?'}`,
-    pick: labels[best], cote_ia: coteIA, cote_marche: coteMarche,
+    pick: labels[best], pick_key: best, cote_ia: coteIA, cote_marche: coteMarche,
     confidence, value, probabilities: probas,
     factors: factors.slice(0, 4), bookmakers: odds, injuries, team_stats: stats,
   };
@@ -181,7 +181,7 @@ function predictTennis(data) {
 
   return {
     match: `${home.name || '?'} vs ${away.name || '?'}`,
-    pick: labels[best], cote_ia: coteIA, cote_marche: coteMarche,
+    pick: labels[best], pick_key: best, cote_ia: coteIA, cote_marche: coteMarche,
     confidence, value,
     factors: factors.slice(0, 4), bookmakers: odds, injuries: [], team_stats: stats,
   };
@@ -235,7 +235,7 @@ function predictBasketball(data) {
 
   return {
     match: `${home.name || '?'} vs ${away.name || '?'}`,
-    pick: labels[best], cote_ia: coteIA, cote_marche: coteMarche,
+    pick: labels[best], pick_key: best, cote_ia: coteIA, cote_marche: coteMarche,
     confidence, value,
     factors: factors.slice(0, 4), bookmakers: odds, injuries: data.injuries || [], team_stats: stats,
   };
@@ -298,7 +298,7 @@ function predictMma(data) {
 
   return {
     match: `${home.name || '?'} vs ${away.name || '?'}`,
-    pick: labels[best], cote_ia: coteIA, cote_marche: coteMarche,
+    pick: labels[best], pick_key: best, cote_ia: coteIA, cote_marche: coteMarche,
     confidence, value,
     factors: factors.slice(0, 4), bookmakers: odds, injuries: [], team_stats: stats,
   };
@@ -356,7 +356,7 @@ function predictBoxe(data) {
 
   return {
     match: `${home.name || '?'} vs ${away.name || '?'}`,
-    pick: labels[best], cote_ia: coteIA, cote_marche: coteMarche,
+    pick: labels[best], pick_key: best, cote_ia: coteIA, cote_marche: coteMarche,
     confidence, value,
     factors: factors.slice(0, 4), bookmakers: odds, injuries: [], team_stats: stats,
   };
@@ -418,7 +418,7 @@ function predictRugby(data) {
 
   return {
     match: `${home.name || '?'} vs ${away.name || '?'}`,
-    pick: labels[best], cote_ia: coteIA, cote_marche: coteMarche,
+    pick: labels[best], pick_key: best, cote_ia: coteIA, cote_marche: coteMarche,
     confidence, value,
     factors: factors.slice(0, 4), bookmakers: odds, injuries, team_stats: stats,
   };

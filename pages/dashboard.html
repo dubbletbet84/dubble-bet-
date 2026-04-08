@@ -480,17 +480,34 @@
         document.getElementById('confBar').style.width = prono.confidence + '%';
       }, 100);
 
-      // Bookmakers
+      // Bookmakers — affiche uniquement la cote du pick + moyenne
       const bkEl = document.getElementById('bookmakersContent');
       if (prono.bookmakers) {
-        bkEl.innerHTML = Object.entries(prono.bookmakers).map(([name, odds]) => {
-          const firstKey = Object.keys(odds)[0];
-          const vals = Object.entries(odds).map(([k, v]) =>
-            `<span class="bk-cote ${v === Math.max(...Object.values(odds)) ? 'best' : ''}">${v.toFixed(2)}</span>`
-          ).join('');
-          return `<div class="bk-row"><span class="bk-name">${name}</span><div class="bk-cotes">${vals}</div></div>`;
-        }).join('');
-        document.getElementById('avgCote').textContent = prono.cote_marche.toFixed(2);
+        const pickKey = prono.pick_key || 'home'; // 'home' | 'draw' | 'away'
+        const pickLabel = { home: '1', draw: 'N', away: '2' }[pickKey] || '1';
+
+        // Cotes du pick par bookmaker
+        const bkCotes = Object.entries(prono.bookmakers).map(([name, odds]) => {
+          const cote = odds[pickKey] || Object.values(odds)[0];
+          return { name, cote };
+        });
+
+        // Calcul de la moyenne
+        const avg = bkCotes.reduce((s, b) => s + b.cote, 0) / bkCotes.length;
+        const avgStr = avg.toFixed(2);
+
+        // Affichage : une ligne par bookmaker, mise en valeur de la meilleure cote
+        const maxCote = Math.max(...bkCotes.map(b => b.cote));
+        bkEl.innerHTML = `
+          <div class="bk-pick-label">Cote retenue : <strong>${pickLabel}</strong> — ${prono.pick}</div>
+          ${bkCotes.map(({ name, cote }) =>
+            `<div class="bk-row">
+              <span class="bk-name">${name}</span>
+              <span class="bk-cote-single ${cote === maxCote ? 'best' : ''}">${cote.toFixed(2)}</span>
+            </div>`
+          ).join('')}`;
+
+        document.getElementById('avgCote').textContent = avgStr;
       }
 
       // Stats équipes (backend retourne team_stats, démo retourne teamStats)
