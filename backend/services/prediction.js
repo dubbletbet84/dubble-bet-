@@ -135,81 +135,65 @@ function predictFootball(data) {
 
   // ── Cotes réelles disponibles ? ──────────────────────
   // calcAvgCote > 0 seulement si The Odds API a retourné des données
-  const hasRealOdds = calcAvgCote(odds, 'home') > 0;
-
-  const mktHome   = calcAvgCote(odds, 'home')   || probaToQuote(pHome,   0.07);
-  const mktDraw   = calcAvgCote(odds, 'draw')   || probaToQuote(pDraw,   0.07);
-  const mktAway   = calcAvgCote(odds, 'away')   || probaToQuote(pAway,   0.07);
-  const mktOver25 = calcAvgCote(odds, 'over25') || probaToQuote(pOver25, 0.06);
-  const mktBTTS   = calcAvgCote(odds, 'btts')   || probaToQuote(pBTTS,   0.06);
+  // Cotes UNIQUEMENT depuis The Odds API (0 si non disponible)
+  const hasRealOdds = !!(odds && Object.keys(odds).length > 0);
   const p1X = pHome + pDraw;
   const pX2 = pDraw + pAway;
+  const p12 = pHome + pAway;
+
+  const mktHome    = calcAvgCote(odds, 'home');
+  const mktDraw    = calcAvgCote(odds, 'draw');
+  const mktAway    = calcAvgCote(odds, 'away');
+  const mktOver25  = calcAvgCote(odds, 'over25');
+  const mktBTTS    = calcAvgCote(odds, 'btts');
+  const mkt1X      = calcAvgCote(odds, '1X');
+  const mktX2      = calcAvgCote(odds, 'X2');
+  const mkt12      = calcAvgCote(odds, '12');
+  const mktOver35  = calcAvgCote(odds, 'over35');
+  const mktUnder25 = calcAvgCote(odds, 'under25');
+  const mktBTTSNo  = calcAvgCote(odds, 'bttsNo');
 
   // ── Sélection du pick ─────────────────────────────────
-  // Avec cotes réelles : choisir la meilleure value parmi les marchés >= 1.90
-  // Sans cotes réelles : sélection par probabilités Poisson
+  // Uniquement parmi les marchés avec VRAIE cote bookmaker >= 1.90
   let bestKey;
 
-  // Cotes double chance (calculées depuis probabilités Poisson)
-  const mkt1X = parseFloat(Math.max(1.05, (1 / p1X) * 0.93).toFixed(2));
-  const mktX2 = parseFloat(Math.max(1.05, (1 / pX2) * 0.93).toFixed(2));
-  const p12   = pHome + pAway;
-  const mkt12 = parseFloat(Math.max(1.05, (1 / p12) * 0.93).toFixed(2));
+  const valueOf = (proba, mkt) => calcValue(probaToQuote(proba, 0.05), mkt);
+  const allMarkets = [
+    { k: 'home',    mkt: mktHome,    v: valueOf(pHome,    mktHome),    p: pHome    },
+    { k: 'draw',    mkt: mktDraw,    v: valueOf(pDraw,    mktDraw),    p: pDraw    },
+    { k: 'away',    mkt: mktAway,    v: valueOf(pAway,    mktAway),    p: pAway    },
+    { k: 'over25',  mkt: mktOver25,  v: valueOf(pOver25,  mktOver25),  p: pOver25  },
+    { k: 'btts',    mkt: mktBTTS,    v: valueOf(pBTTS,    mktBTTS),    p: pBTTS    },
+    { k: '1X',      mkt: mkt1X,      v: valueOf(p1X,      mkt1X),      p: p1X      },
+    { k: 'X2',      mkt: mktX2,      v: valueOf(pX2,      mktX2),      p: pX2      },
+    { k: '12',      mkt: mkt12,      v: valueOf(p12,      mkt12),      p: p12      },
+    { k: 'over35',  mkt: mktOver35,  v: valueOf(pOver35,  mktOver35),  p: pOver35  },
+    { k: 'under25', mkt: mktUnder25, v: valueOf(1-pOver25,mktUnder25), p: 1-pOver25},
+    { k: 'bttsNo',  mkt: mktBTTSNo,  v: valueOf(1-pBTTS,  mktBTTSNo),  p: 1-pBTTS  },
+  ].filter(c => c.mkt > 0); // seulement les marchés avec vraie cote bookmaker
 
-  if (hasRealOdds) {
-    const valueOf = (proba, mkt) => calcValue(probaToQuote(proba, 0.05), mkt);
-    const markets = [
-      { k: 'home',   mkt: mktHome,   v: valueOf(pHome,   mktHome),   p: pHome   },
-      { k: 'draw',   mkt: mktDraw,   v: valueOf(pDraw,   mktDraw),   p: pDraw   },
-      { k: 'away',   mkt: mktAway,   v: valueOf(pAway,   mktAway),   p: pAway   },
-      { k: 'over25', mkt: mktOver25, v: valueOf(pOver25, mktOver25), p: pOver25 },
-      { k: 'btts',   mkt: mktBTTS,   v: valueOf(pBTTS,   mktBTTS),   p: pBTTS   },
-      { k: '1X',      mkt: mkt1X,                    v: valueOf(p1X,      mkt1X),                    p: p1X      },
-      { k: 'X2',      mkt: mktX2,                    v: valueOf(pX2,      mktX2),                    p: pX2      },
-      { k: '12',      mkt: mkt12,                    v: valueOf(p12,      mkt12),                    p: p12      },
-      { k: 'over35',  mkt: probaToQuote(pOver35,0.06), v: valueOf(pOver35,  probaToQuote(pOver35,0.06)),  p: pOver35  },
-      { k: 'under25', mkt: probaToQuote(1-pOver25,0.06), v: valueOf(1-pOver25, probaToQuote(1-pOver25,0.06)), p: 1-pOver25 },
-      { k: 'bttsNo',  mkt: probaToQuote(1-pBTTS,0.06),  v: valueOf(1-pBTTS,  probaToQuote(1-pBTTS,0.06)),  p: 1-pBTTS  },
-    ];
-    // Parmi les marchés avec cote >= 1.90, choisir la meilleure value
-    const eligible = markets.filter(c => c.mkt >= 1.90 && c.p >= 0.10);
-    if (eligible.length > 0) {
-      bestKey = eligible.sort((a, b) => b.v - a.v)[0].k;
-    } else {
-      bestKey = markets.sort((a, b) => b.p - a.p)[0].k;
-    }
+  const eligible = allMarkets.filter(c => c.mkt >= 1.90 && c.p >= 0.10);
+  if (eligible.length > 0) {
+    bestKey = eligible.sort((a, b) => b.v - a.v)[0].k;
+  } else if (allMarkets.length > 0) {
+    bestKey = allMarkets.sort((a, b) => b.p - a.p)[0].k;
   } else {
-    // Pas de vraies cotes : logique probabiliste pure
-    if (pHome > 0.58) {
-      bestKey = 'home';
-    } else if (pAway > 0.50) {
-      bestKey = 'away';
-    } else if (totalXg > 2.9 && pOver25 > 0.58) {
-      bestKey = 'over25';
-    } else if (pBTTS > 0.62 && homeXg > 1.2 && awayXg > 1.0) {
-      bestKey = 'btts';
-    } else if (pHome > 0.43) {
-      bestKey = 'home';
-    } else if (pOver25 > 0.52 && totalXg > 2.5) {
-      bestKey = 'over25';
-    } else {
-      bestKey = 'home';
-    }
+    bestKey = 'home'; // fallback si aucune cote dispo (sera filtré par pronos.js)
   }
 
   // ── Construction du résultat ──────────────────────────
   const pickMap = {
-    home:   { bet_type: 'Résultat',       pick: `Victoire ${homeName}`,        proba: pHome,   cote_marche: mktHome,   cote_ia: probaToQuote(pHome,   0.05) },
-    draw:   { bet_type: 'Résultat',       pick: 'Match nul',                    proba: pDraw,   cote_marche: mktDraw,   cote_ia: probaToQuote(pDraw,   0.05) },
-    away:   { bet_type: 'Résultat',       pick: `Victoire ${awayName}`,         proba: pAway,   cote_marche: mktAway,   cote_ia: probaToQuote(pAway,   0.05) },
-    over25: { bet_type: 'Nombre de buts', pick: 'Plus de 2.5 buts',             proba: pOver25, cote_marche: mktOver25, cote_ia: probaToQuote(pOver25, 0.05) },
-    btts:   { bet_type: 'Les 2 marquent', pick: 'Les 2 équipes marquent — Oui', proba: pBTTS,   cote_marche: mktBTTS,   cote_ia: probaToQuote(pBTTS,   0.05) },
-    '1X':   { bet_type: 'Double chance',  pick: `${homeName} ou Nul`,           proba: p1X,  cote_marche: mkt1X,  cote_ia: probaToQuote(p1X,  0.04) },
-    'X2':   { bet_type: 'Double chance',  pick: `${awayName} ou Nul`,           proba: pX2,  cote_marche: mktX2,  cote_ia: probaToQuote(pX2,  0.04) },
-    '12':   { bet_type: 'Double chance',  pick: `${homeName} ou ${awayName}`,   proba: p12,  cote_marche: mkt12,  cote_ia: probaToQuote(p12,  0.04) },
-    over35: { bet_type: 'Nombre de buts', pick: 'Plus de 3.5 buts',             proba: pOver35, cote_marche: probaToQuote(pOver35, 0.06), cote_ia: probaToQuote(pOver35, 0.05) },
-    under25:{ bet_type: 'Nombre de buts', pick: 'Moins de 2.5 buts',            proba: 1-pOver25, cote_marche: probaToQuote(1-pOver25, 0.06), cote_ia: probaToQuote(1-pOver25, 0.05) },
-    bttsNo: { bet_type: 'Les 2 marquent', pick: 'Les 2 équipes marquent — Non', proba: 1-pBTTS,   cote_marche: probaToQuote(1-pBTTS,   0.06), cote_ia: probaToQuote(1-pBTTS,   0.05) },
+    home:    { bet_type: 'Résultat',       pick: `Victoire ${homeName}`,         proba: pHome,     cote_marche: mktHome,    cote_ia: probaToQuote(pHome,    0.05) },
+    draw:    { bet_type: 'Résultat',       pick: 'Match nul',                     proba: pDraw,     cote_marche: mktDraw,    cote_ia: probaToQuote(pDraw,    0.05) },
+    away:    { bet_type: 'Résultat',       pick: `Victoire ${awayName}`,          proba: pAway,     cote_marche: mktAway,    cote_ia: probaToQuote(pAway,    0.05) },
+    over25:  { bet_type: 'Nombre de buts', pick: 'Plus de 2.5 buts',              proba: pOver25,   cote_marche: mktOver25,  cote_ia: probaToQuote(pOver25,  0.05) },
+    btts:    { bet_type: 'Les 2 marquent', pick: 'Les 2 équipes marquent — Oui',  proba: pBTTS,     cote_marche: mktBTTS,    cote_ia: probaToQuote(pBTTS,    0.05) },
+    '1X':    { bet_type: 'Double chance',  pick: `${homeName} ou Nul`,            proba: p1X,       cote_marche: mkt1X,      cote_ia: probaToQuote(p1X,      0.04) },
+    'X2':    { bet_type: 'Double chance',  pick: `${awayName} ou Nul`,            proba: pX2,       cote_marche: mktX2,      cote_ia: probaToQuote(pX2,      0.04) },
+    '12':    { bet_type: 'Double chance',  pick: `${homeName} ou ${awayName}`,    proba: p12,       cote_marche: mkt12,      cote_ia: probaToQuote(p12,      0.04) },
+    over35:  { bet_type: 'Nombre de buts', pick: 'Plus de 3.5 buts',              proba: pOver35,   cote_marche: mktOver35,  cote_ia: probaToQuote(pOver35,  0.05) },
+    under25: { bet_type: 'Nombre de buts', pick: 'Moins de 2.5 buts',             proba: 1-pOver25, cote_marche: mktUnder25, cote_ia: probaToQuote(1-pOver25,0.05) },
+    bttsNo:  { bet_type: 'Les 2 marquent', pick: 'Les 2 équipes marquent — Non',  proba: 1-pBTTS,   cote_marche: mktBTTSNo,  cote_ia: probaToQuote(1-pBTTS,  0.05) },
   };
 
   const best = { pick_key: bestKey, ...pickMap[bestKey] };
@@ -308,7 +292,7 @@ function predictTennis(data) {
 
   const coteIA     = probaToQuote(proba, 0.04);
   let coteMarche   = calcAvgCote(odds, best);
-  if (!coteMarche) coteMarche = parseFloat((coteIA * 1.10).toFixed(2));
+  // pas de fallback IA : cote_marche = 0 si pas de vraies cotes bookmakers
   const value      = calcValue(coteIA, coteMarche);
   const confidence = calcConfidence(proba, value);
 
@@ -364,7 +348,7 @@ function predictBasketball(data) {
 
   const coteIA     = probaToQuote(proba);
   let coteMarche   = calcAvgCote(odds, best);
-  if (!coteMarche) coteMarche = parseFloat((coteIA * 1.10).toFixed(2));
+  // pas de fallback IA : cote_marche = 0 si pas de vraies cotes bookmakers
   const value      = calcValue(coteIA, coteMarche);
   const confidence = calcConfidence(proba, value);
 
@@ -424,7 +408,7 @@ function predictMma(data) {
 
   const coteIA     = probaToQuote(proba, 0.06);
   let coteMarche   = calcAvgCote(odds, best);
-  if (!coteMarche) coteMarche = parseFloat((coteIA * 1.12).toFixed(2));
+  // pas de fallback IA : cote_marche = 0 si pas de vraies cotes bookmakers
   const value      = calcValue(coteIA, coteMarche);
   const confidence = calcConfidence(proba, value);
 
@@ -489,7 +473,7 @@ function predictBoxe(data) {
 
   const coteIA     = probaToQuote(proba, 0.06);
   let coteMarche   = calcAvgCote(odds, best);
-  if (!coteMarche) coteMarche = parseFloat((coteIA * 1.12).toFixed(2));
+  // pas de fallback IA : cote_marche = 0 si pas de vraies cotes bookmakers
   const value      = calcValue(coteIA, coteMarche);
   const confidence = calcConfidence(proba, value);
 
@@ -553,7 +537,7 @@ function predictRugby(data) {
 
   const coteIA     = probaToQuote(proba);
   let coteMarche   = calcAvgCote(odds, best);
-  if (!coteMarche) coteMarche = parseFloat((coteIA * 1.10).toFixed(2));
+  // pas de fallback IA : cote_marche = 0 si pas de vraies cotes bookmakers
   const value      = calcValue(coteIA, coteMarche);
   const confidence = calcConfidence(proba, value, homeKeyInj * 0.04);
 

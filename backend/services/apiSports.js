@@ -570,13 +570,16 @@ async function getInjuries() {
 }
 
 // ─── getOdds ──────────────────────────────────────────
+// Retourne uniquement les vraies cotes bookmakers (The Odds API)
+// null si pas de couverture pour ce match → pas de prono généré
 async function getOdds(fixture) {
   const real = await getRealOdds(fixture);
   if (real) {
     console.log(`[odds] Vraies cotes récupérées pour ${fixture.homeTeam?.name} vs ${fixture.awayTeam?.name}`);
     return real;
   }
-  return getDemoOdds(fixture);
+  console.warn(`[odds] Pas de cotes réelles pour ${fixture.homeTeam?.name} vs ${fixture.awayTeam?.name}`);
+  return null;
 }
 
 module.exports = { getFixtures, getTeamStats, getInjuries, getOdds, getDemoFixtures };
