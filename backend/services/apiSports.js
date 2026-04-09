@@ -374,13 +374,25 @@ function getDemoStats(fixture) {
 // ─── Cache fixtures football (10 min pour éviter 429) ──
 const _fixturesCache = {};
 
+// ─── Construire des fixtures depuis les événements The Odds API ──
+function fixturesFromOddsEvents(events, league) {
+  return events.map(e => ({
+    id:       e.id,
+    isDemo:   false,
+    sport:    'football',
+    league,
+    homeTeam: { id: 0, name: e.home_team, logo: '' },
+    awayTeam: { id: 0, name: e.away_team, logo: '' },
+    date:     e.commence_time,
+    venue:    '',
+    status:   'SCHEDULED',
+  }));
+}
+
 // ─── getFootballFixtures ──────────────────────────────
 async function getFootballFixtures(league, date) {
   const competitionId = FOOTBALL_LEAGUE_IDS[league];
-  if (!competitionId || !process.env.FOOTBALL_DATA_KEY) {
-    console.warn(`[apiSports] Football: pas de clé ou ligue inconnue (${league}) — démo`);
-    return getDemoFixtures('football', league);
-  }
+  const sportKey      = ODDS_API_SPORT_KEYS[league];
 
   // Cache 10 min : évite le 429 (10 req/min sur plan gratuit)
   const cacheKey = `${league}_${date}`;
@@ -389,37 +401,56 @@ async function getFootballFixtures(league, date) {
     return _fixturesCache[cacheKey].data;
   }
 
-  try {
-    const client = getFootballClient();
-    const { data } = await client.get(`/competitions/${competitionId}/matches`, {
-      params: { dateFrom: date, dateTo: date },
-    });
-    const matches = data.matches || [];
-    if (!matches.length) {
-      console.warn(`[apiSports] Football: aucun match ${league} le ${date} — démo`);
-      const demo = getDemoFixtures('football', league);
-      _fixturesCache[cacheKey] = { ts: now, data: demo };
-      return demo;
+  // 1. Essayer football-data.org si clé disponible
+  if (competitionId && process.env.FOOTBALL_DATA_KEY) {
+    try {
+      const client = getFootballClient();
+      const { data } = await client.get(`/competitions/${competitionId}/matches`, {
+        params: { dateFrom: date, dateTo: date },
+      });
+      const matches = data.matches || [];
+      if (matches.length) {
+        const result = matches.map(m => ({
+          id:       m.id,
+          isDemo:   false,
+          sport:    'football',
+          league,
+          homeTeam: { id: m.homeTeam.id, name: m.homeTeam.name, logo: m.homeTeam.crest || '' },
+          awayTeam: { id: m.awayTeam.id, name: m.awayTeam.name, logo: m.awayTeam.crest || '' },
+          date:     m.utcDate,
+          venue:    m.venue || '',
+          status:   m.status,
+        }));
+        _fixturesCache[cacheKey] = { ts: now, data: result };
+        return result;
+      }
+      console.warn(`[apiSports] football-data.org: aucun match ${league} le ${date} — tentative Odds API`);
+    } catch (err) {
+      console.error('[apiSports/getFootballFixtures] football-data.org:', err.message);
+      if (_fixturesCache[cacheKey]) return _fixturesCache[cacheKey].data;
     }
-    const result = matches.map(m => ({
-      id:       m.id,
-      isDemo:   false,
-      sport:    'football',
-      league,
-      homeTeam: { id: m.homeTeam.id, name: m.homeTeam.name, logo: m.homeTeam.crest || '' },
-      awayTeam: { id: m.awayTeam.id, name: m.awayTeam.name, logo: m.awayTeam.crest || '' },
-      date:     m.utcDate,
-      venue:    m.venue || '',
-      status:   m.status,
-    }));
-    _fixturesCache[cacheKey] = { ts: now, data: result };
-    return result;
-  } catch (err) {
-    console.error('[apiSports/getFootballFixtures]', err.message);
-    // En cas de 429 ou autre erreur : retourner le cache expiré si dispo, sinon démo
-    if (_fixturesCache[cacheKey]) return _fixturesCache[cacheKey].data;
-    return getDemoFixtures('football', league);
   }
+
+  // 2. Fallback : utiliser les événements de The Odds API comme fixtures
+  if (sportKey) {
+    try {
+      const events = await fetchTheOddsApi(sportKey, date);
+      if (events?.length) {
+        console.log(`[apiSports] Odds API: ${events.length} match(s) trouvé(s) pour ${league} le ${date}`);
+        const result = fixturesFromOddsEvents(events, league);
+        _fixturesCache[cacheKey] = { ts: now, data: result };
+        return result;
+      }
+    } catch (err) {
+      console.error('[apiSports/getFootballFixtures] Odds API:', err.message);
+    }
+  }
+
+  // 3. Aucune source réelle → démo
+  console.warn(`[apiSports] Football: aucune source réelle pour ${league} le ${date} — démo`);
+  const demo = getDemoFixtures('football', league);
+  _fixturesCache[cacheKey] = { ts: now, data: demo };
+  return demo;
 }
 
 // ─── getBasketballFixtures ────────────────────────────
