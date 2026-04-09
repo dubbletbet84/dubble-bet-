@@ -135,6 +135,12 @@ function predictFootball(data) {
   // Sans cotes réelles : sélection par probabilités Poisson
   let bestKey;
 
+  // Cotes double chance (calculées depuis probabilités Poisson)
+  const mkt1X = parseFloat(Math.max(1.05, (1 / p1X) * 0.93).toFixed(2));
+  const mktX2 = parseFloat(Math.max(1.05, (1 / pX2) * 0.93).toFixed(2));
+  const p12   = pHome + pAway;
+  const mkt12 = parseFloat(Math.max(1.05, (1 / p12) * 0.93).toFixed(2));
+
   if (hasRealOdds) {
     const valueOf = (proba, mkt) => calcValue(probaToQuote(proba, 0.05), mkt);
     const markets = [
@@ -143,13 +149,18 @@ function predictFootball(data) {
       { k: 'away',   mkt: mktAway,   v: valueOf(pAway,   mktAway),   p: pAway   },
       { k: 'over25', mkt: mktOver25, v: valueOf(pOver25, mktOver25), p: pOver25 },
       { k: 'btts',   mkt: mktBTTS,   v: valueOf(pBTTS,   mktBTTS),   p: pBTTS   },
+      { k: '1X',      mkt: mkt1X,                    v: valueOf(p1X,      mkt1X),                    p: p1X      },
+      { k: 'X2',      mkt: mktX2,                    v: valueOf(pX2,      mktX2),                    p: pX2      },
+      { k: '12',      mkt: mkt12,                    v: valueOf(p12,      mkt12),                    p: p12      },
+      { k: 'over35',  mkt: probaToQuote(pOver35,0.06), v: valueOf(pOver35,  probaToQuote(pOver35,0.06)),  p: pOver35  },
+      { k: 'under25', mkt: probaToQuote(1-pOver25,0.06), v: valueOf(1-pOver25, probaToQuote(1-pOver25,0.06)), p: 1-pOver25 },
+      { k: 'bttsNo',  mkt: probaToQuote(1-pBTTS,0.06),  v: valueOf(1-pBTTS,  probaToQuote(1-pBTTS,0.06)),  p: 1-pBTTS  },
     ];
-    // Parmi les marchés avec cote bookmaker >= 1.90, choisir la meilleure value
+    // Parmi les marchés avec cote >= 1.90, choisir la meilleure value
     const eligible = markets.filter(c => c.mkt >= 1.90 && c.p >= 0.10);
     if (eligible.length > 0) {
       bestKey = eligible.sort((a, b) => b.v - a.v)[0].k;
     } else {
-      // Aucun marché >= 1.90 → prendre le plus probable (cas extrême)
       bestKey = markets.sort((a, b) => b.p - a.p)[0].k;
     }
   } else {
@@ -178,8 +189,12 @@ function predictFootball(data) {
     away:   { bet_type: 'Résultat',       pick: `Victoire ${awayName}`,         proba: pAway,   cote_marche: mktAway,   cote_ia: probaToQuote(pAway,   0.05) },
     over25: { bet_type: 'Nombre de buts', pick: 'Plus de 2.5 buts',             proba: pOver25, cote_marche: mktOver25, cote_ia: probaToQuote(pOver25, 0.05) },
     btts:   { bet_type: 'Les 2 marquent', pick: 'Les 2 équipes marquent — Oui', proba: pBTTS,   cote_marche: mktBTTS,   cote_ia: probaToQuote(pBTTS,   0.05) },
-    '1X':   { bet_type: 'Double chance',  pick: `${homeName} ou Nul`,           proba: p1X,     cote_marche: parseFloat(Math.max(1.05,(1/p1X)*0.93).toFixed(2)), cote_ia: probaToQuote(p1X, 0.04) },
-    'X2':   { bet_type: 'Double chance',  pick: `${awayName} ou Nul`,           proba: pX2,     cote_marche: parseFloat(Math.max(1.05,(1/pX2)*0.93).toFixed(2)), cote_ia: probaToQuote(pX2, 0.04) },
+    '1X':   { bet_type: 'Double chance',  pick: `${homeName} ou Nul`,           proba: p1X,  cote_marche: mkt1X,  cote_ia: probaToQuote(p1X,  0.04) },
+    'X2':   { bet_type: 'Double chance',  pick: `${awayName} ou Nul`,           proba: pX2,  cote_marche: mktX2,  cote_ia: probaToQuote(pX2,  0.04) },
+    '12':   { bet_type: 'Double chance',  pick: `${homeName} ou ${awayName}`,   proba: p12,  cote_marche: mkt12,  cote_ia: probaToQuote(p12,  0.04) },
+    over35: { bet_type: 'Nombre de buts', pick: 'Plus de 3.5 buts',             proba: pOver35, cote_marche: probaToQuote(pOver35, 0.06), cote_ia: probaToQuote(pOver35, 0.05) },
+    under25:{ bet_type: 'Nombre de buts', pick: 'Moins de 2.5 buts',            proba: 1-pOver25, cote_marche: probaToQuote(1-pOver25, 0.06), cote_ia: probaToQuote(1-pOver25, 0.05) },
+    bttsNo: { bet_type: 'Les 2 marquent', pick: 'Les 2 équipes marquent — Non', proba: 1-pBTTS,   cote_marche: probaToQuote(1-pBTTS,   0.06), cote_ia: probaToQuote(1-pBTTS,   0.05) },
   };
 
   const best = { pick_key: bestKey, ...pickMap[bestKey] };
