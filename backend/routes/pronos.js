@@ -361,4 +361,55 @@ router.get('/debug-odds', async (req, res) => {
   }
 });
 
+// ─── GET /api/pronos/debug-full?league=Ligue+1&date=2026-04-10 ──
+router.get('/debug-full', async (req, res) => {
+  const { league = 'Ligue 1', date = new Date().toISOString().slice(0, 10) } = req.query;
+  const trace = [];
+
+  try {
+    // 1. Fixtures
+    const fixtures = await apiSports.getFixtures({ sport: 'football', league, date });
+    trace.push({
+      step: 'getFixtures',
+      count: fixtures.length,
+      isDemo: fixtures[0]?.isDemo,
+      matches: fixtures.map(f => `${f.homeTeam?.name} vs ${f.awayTeam?.name}`),
+    });
+
+    if (!fixtures.length || fixtures[0]?.isDemo) {
+      return res.json({ ok: false, trace, reason: fixtures[0]?.isDemo ? 'fixtures isDemo=true' : 'aucun fixture' });
+    }
+
+    // 2. Odds pour le 1er match
+    const fixture = fixtures[0];
+    const odds = await apiSports.getOdds(fixture);
+    const bookmakerCount = odds ? Object.keys(odds).length : 0;
+    const sample = odds ? Object.entries(odds).slice(0, 2).map(([bk, o]) => ({ bk, home: o.home, draw: o.draw, away: o.away })) : [];
+    trace.push({ step: 'getOdds', hasOdds: !!odds, bookmakers: bookmakerCount, sample });
+
+    if (!odds) {
+      return res.json({ ok: false, trace, reason: 'pas de cotes réelles (The Odds API)' });
+    }
+
+    // 3. Prediction
+    const stats    = await apiSports.getTeamStats(fixture);
+    const injuries = await apiSports.getInjuries(fixture);
+    const prediction = require('../services/prediction');
+    const pred = await prediction.predict({ ...fixture, stats, injuries, odds });
+    trace.push({
+      step: 'prediction',
+      pick: pred.pick,
+      cote_marche: pred.cote_marche,
+      cote_ia: pred.cote_ia,
+      confidence: pred.confidence,
+      value: pred.value,
+      eligibleForProno: pred.cote_marche >= 1.90,
+    });
+
+    res.json({ ok: pred.cote_marche >= 1.90, trace });
+  } catch (err) {
+    res.json({ ok: false, trace, error: err.message });
+  }
+});
+
 module.exports = router;
