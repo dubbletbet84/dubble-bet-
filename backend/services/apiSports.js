@@ -78,7 +78,7 @@ async function fetchTheOddsApi(sportKey, date) {
       params: {
         apiKey:            key,
         regions:           'eu',
-        markets:           'h2h,totals',
+        markets:           'h2h,totals,double_chance,btts',
         oddsFormat:        'decimal',
         commenceTimeFrom:  `${date}T00:00:00Z`,
         commenceTimeTo:    `${date}T23:59:59Z`,
@@ -105,15 +105,29 @@ function buildOddsFromEvent(event) {
     const awayPrice = h2h.outcomes.find(o => o.name === event.away_team)?.price;
     const drawPrice = h2h.outcomes.find(o => o.name === 'Draw')?.price;
     const over25    = totals?.outcomes.find(o => o.name === 'Over'  && Math.abs(o.point - 2.5) < 0.01)?.price;
-    const btts      = bk.markets?.find(m => m.key === 'btts')?.outcomes?.find(o => o.name === 'Yes')?.price;
+    const over35    = totals?.outcomes.find(o => o.name === 'Over'  && Math.abs(o.point - 3.5) < 0.01)?.price;
+    const under25   = totals?.outcomes.find(o => o.name === 'Under' && Math.abs(o.point - 2.5) < 0.01)?.price;
+    const bttsMkt   = bk.markets?.find(m => m.key === 'btts');
+    const btts      = bttsMkt?.outcomes?.find(o => o.name === 'Yes')?.price;
+    const bttsNo    = bttsMkt?.outcomes?.find(o => o.name === 'No')?.price;
+    const dcMkt     = bk.markets?.find(m => m.key === 'double_chance');
+    const dc1X      = dcMkt?.outcomes?.find(o => /home.?draw|1x/i.test(o.name))?.price;
+    const dcX2      = dcMkt?.outcomes?.find(o => /draw.?away|x2/i.test(o.name))?.price;
+    const dc12      = dcMkt?.outcomes?.find(o => /home.?away|12/i.test(o.name))?.price;
 
     if (!homePrice || !awayPrice) continue;
     result[label] = {
       home:  parseFloat(homePrice.toFixed(2)),
       draw:  drawPrice ? parseFloat(drawPrice.toFixed(2)) : null,
       away:  parseFloat(awayPrice.toFixed(2)),
-      ...(over25 ? { over25: parseFloat(over25.toFixed(2)) } : {}),
-      ...(btts   ? { btts:   parseFloat(btts.toFixed(2))   } : {}),
+      ...(over25  ? { over25:  parseFloat(over25.toFixed(2))  } : {}),
+      ...(over35  ? { over35:  parseFloat(over35.toFixed(2))  } : {}),
+      ...(under25 ? { under25: parseFloat(under25.toFixed(2)) } : {}),
+      ...(btts    ? { btts:    parseFloat(btts.toFixed(2))    } : {}),
+      ...(bttsNo  ? { bttsNo:  parseFloat(bttsNo.toFixed(2))  } : {}),
+      ...(dc1X    ? { '1X':    parseFloat(dc1X.toFixed(2))    } : {}),
+      ...(dcX2    ? { 'X2':    parseFloat(dcX2.toFixed(2))    } : {}),
+      ...(dc12    ? { '12':    parseFloat(dc12.toFixed(2))    } : {}),
     };
   }
   return Object.keys(result).length ? result : null;
