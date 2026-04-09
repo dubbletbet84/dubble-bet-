@@ -58,6 +58,21 @@ function homeAdvantageBonus(sport) {
 }
 
 
+// Dérive les cotes double chance depuis les cotes 1X2 de chaque bookmaker
+function enrichOdds(odds, pickKey) {
+  if (!['1X', 'X2', '12'].includes(pickKey)) return odds;
+  const result = {};
+  for (const [bk, o] of Object.entries(odds || {})) {
+    const h = o.home, d = o.draw, a = o.away;
+    let derived = null;
+    if (pickKey === '1X' && h && d) derived = parseFloat((1 / (1/h + 1/d)).toFixed(2));
+    if (pickKey === 'X2' && d && a) derived = parseFloat((1 / (1/d + 1/a)).toFixed(2));
+    if (pickKey === '12' && h && a) derived = parseFloat((1 / (1/h + 1/a)).toFixed(2));
+    result[bk] = { ...o, [pickKey]: derived };
+  }
+  return result;
+}
+
 // ===================================================
 // ⚽ FOOTBALL — Poisson bivariée + xG + blessures
 // ===================================================
@@ -247,7 +262,7 @@ function predictFootball(data) {
     odds_are_real:  hasRealOdds,
     probabilities:  { home: +pHome.toFixed(3), draw: +pDraw.toFixed(3), away: +pAway.toFixed(3), over25: +pOver25.toFixed(3), btts: +pBTTS.toFixed(3) },
     factors:        factors.slice(0, 4),
-    bookmakers:     hasRealOdds ? odds : {},   // n'envoyer les cotes que si réelles
+    bookmakers:     hasRealOdds ? enrichOdds(odds, bestKey) : {},
     injuries,
     team_stats:     stats,
     alternatives,

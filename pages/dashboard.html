@@ -553,7 +553,7 @@
 
       if (prono.odds_are_real && bkEntries.length) {
         const pickKey   = prono.pick_key || 'home';
-        const pickLabel = { home: '1', draw: 'N', away: '2', over25: '+2.5', btts: 'BTTS' }[pickKey] || pickKey;
+        const pickLabel = { home: '1', draw: 'N', away: '2', over25: '+2.5', over35: '+3.5', under25: '-2.5', btts: 'BTTS Oui', bttsNo: 'BTTS Non', '1X': '1X', 'X2': 'X2', '12': '12' }[pickKey] || pickKey;
         const bkCotes   = bkEntries.map(([name, odds]) => ({ name, cote: odds[pickKey] || odds.home })).filter(b => b.cote);
         const avg       = bkCotes.reduce((s, b) => s + b.cote, 0) / (bkCotes.length || 1);
         const maxCote   = Math.max(...bkCotes.map(b => b.cote));
