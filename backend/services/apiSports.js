@@ -109,10 +109,20 @@ function buildOddsFromEvent(event) {
     const under25 = totals?.outcomes.find(o => o.name === 'Under' && Math.abs(o.point - 2.5) < 0.01)?.price;
 
     if (!homePrice || !awayPrice) continue;
+
+    // Dériver les cotes double chance depuis les cotes 1X2
+    // Formule standard : DC_1X = 1 / (1/home + 1/draw)
+    const dc1X = drawPrice ? parseFloat((1 / (1/homePrice + 1/drawPrice)).toFixed(2)) : null;
+    const dcX2 = drawPrice ? parseFloat((1 / (1/drawPrice + 1/awayPrice)).toFixed(2)) : null;
+    const dc12 = parseFloat((1 / (1/homePrice + 1/awayPrice)).toFixed(2));
+
     result[label] = {
       home:  parseFloat(homePrice.toFixed(2)),
       draw:  drawPrice ? parseFloat(drawPrice.toFixed(2)) : null,
       away:  parseFloat(awayPrice.toFixed(2)),
+      ...(dc1X    ? { '1X':    dc1X    } : {}),
+      ...(dcX2    ? { 'X2':    dcX2    } : {}),
+      '12':  dc12,
       ...(over25  ? { over25:  parseFloat(over25.toFixed(2))  } : {}),
       ...(over35  ? { over35:  parseFloat(over35.toFixed(2))  } : {}),
       ...(under25 ? { under25: parseFloat(under25.toFixed(2)) } : {}),
