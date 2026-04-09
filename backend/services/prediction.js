@@ -319,11 +319,13 @@ function predictTennis(data) {
   if (homeFatigue > 2)   factors.push(`${home.name} potentiellement fatigué`);
   if (!factors.length)   factors.push('Analyse Elo favorable', 'Historique head-to-head positif');
 
+  const hasRealOdds = calcAvgCote(odds, 'home') > 0;
   return {
     match: `${home.name || '?'} vs ${away.name || '?'}`,
-    pick: labels[best], pick_key: best, cote_ia: coteIA, cote_marche: coteMarche,
-    confidence, value,
-    factors: factors.slice(0, 4), bookmakers: odds, injuries: [], team_stats: stats,
+    pick: labels[best], pick_key: best, bet_type: 'Résultat',
+    cote_ia: coteIA, cote_marche: coteMarche, confidence, value,
+    odds_are_real: hasRealOdds,
+    factors: factors.slice(0, 4), bookmakers: hasRealOdds ? odds : {}, injuries: [], team_stats: stats,
   };
 }
 
@@ -373,11 +375,13 @@ function predictBasketball(data) {
   if (awayForm < 0.40)   factors.push(`${away.name} en difficulté (${Math.round(awayForm * 100)}%)`);
   if (!factors.length)   factors.push('Avantage terrain significatif', 'Différentiel offensif favorable');
 
+  const hasRealOdds = calcAvgCote(odds, 'home') > 0;
   return {
     match: `${home.name || '?'} vs ${away.name || '?'}`,
-    pick: labels[best], pick_key: best, cote_ia: coteIA, cote_marche: coteMarche,
-    confidence, value,
-    factors: factors.slice(0, 4), bookmakers: odds, injuries: data.injuries || [], team_stats: stats,
+    pick: labels[best], pick_key: best, bet_type: 'Résultat',
+    cote_ia: coteIA, cote_marche: coteMarche, confidence, value,
+    odds_are_real: hasRealOdds,
+    factors: factors.slice(0, 4), bookmakers: hasRealOdds ? odds : {}, injuries: data.injuries || [], team_stats: stats,
   };
 }
 
@@ -436,11 +440,13 @@ function predictMma(data) {
   if (loseForm < 0.35) factors.push(`${loser.name} en méforme récente`);
   if (!factors.length) factors.push('Avantage technique global', 'Statistiques de combat favorables');
 
+  const hasRealOdds = calcAvgCote(odds, 'home') > 0;
   return {
     match: `${home.name || '?'} vs ${away.name || '?'}`,
-    pick: labels[best], pick_key: best, cote_ia: coteIA, cote_marche: coteMarche,
-    confidence, value,
-    factors: factors.slice(0, 4), bookmakers: odds, injuries: [], team_stats: stats,
+    pick: labels[best], pick_key: best, bet_type: 'Résultat',
+    cote_ia: coteIA, cote_marche: coteMarche, confidence, value,
+    odds_are_real: hasRealOdds,
+    factors: factors.slice(0, 4), bookmakers: hasRealOdds ? odds : {}, injuries: [], team_stats: stats,
   };
 }
 
@@ -494,11 +500,13 @@ function predictBoxe(data) {
   if (winForm > 0.70)                         factors.push(`${winner.name} — série positive`);
   if (!factors.length)                        factors.push('Palmarès supérieur', 'Avantage statistique global');
 
+  const hasRealOdds = calcAvgCote(odds, 'home') > 0;
   return {
     match: `${home.name || '?'} vs ${away.name || '?'}`,
-    pick: labels[best], pick_key: best, cote_ia: coteIA, cote_marche: coteMarche,
-    confidence, value,
-    factors: factors.slice(0, 4), bookmakers: odds, injuries: [], team_stats: stats,
+    pick: labels[best], pick_key: best, bet_type: 'Résultat',
+    cote_ia: coteIA, cote_marche: coteMarche, confidence, value,
+    odds_are_real: hasRealOdds,
+    factors: factors.slice(0, 4), bookmakers: hasRealOdds ? odds : {}, injuries: [], team_stats: stats,
   };
 }
 
@@ -556,11 +564,13 @@ function predictRugby(data) {
   if (awayPen > 10)        factors.push(`${away.name} indiscipliné (${awayPen.toFixed(0)} pen/match)`);
   if (!factors.length)     factors.push('Avantage territorial', 'Statistiques de mêlée favorables');
 
+  const hasRealOdds = calcAvgCote(odds, 'home') > 0;
   return {
     match: `${home.name || '?'} vs ${away.name || '?'}`,
-    pick: labels[best], pick_key: best, cote_ia: coteIA, cote_marche: coteMarche,
-    confidence, value,
-    factors: factors.slice(0, 4), bookmakers: odds, injuries, team_stats: stats,
+    pick: labels[best], pick_key: best, bet_type: 'Résultat',
+    cote_ia: coteIA, cote_marche: coteMarche, confidence, value,
+    odds_are_real: hasRealOdds,
+    factors: factors.slice(0, 4), bookmakers: hasRealOdds ? odds : {}, injuries, team_stats: stats,
   };
 }
 
