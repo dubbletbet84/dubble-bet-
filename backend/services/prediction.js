@@ -131,25 +131,44 @@ function predictFootball(data) {
   const pX2 = pDraw + pAway;
 
   // ── Sélection du pick ─────────────────────────────────
-  // Toujours basé sur les probabilités Poisson (cohérence garantie avec les stats)
-  // Les cotes réelles sont utilisées pour l'affichage et le calcul du value,
-  // mais n'influencent PAS le pick choisi (évite les contradictions stats ↔ pick)
+  // Avec cotes réelles : choisir la meilleure value parmi les marchés >= 1.90
+  // Sans cotes réelles : sélection par probabilités Poisson
   let bestKey;
 
-  if (pHome > 0.58) {
-    bestKey = 'home';
-  } else if (pAway > 0.50) {
-    bestKey = 'away';
-  } else if (totalXg > 2.9 && pOver25 > 0.58) {
-    bestKey = 'over25';
-  } else if (pBTTS > 0.62 && homeXg > 1.2 && awayXg > 1.0) {
-    bestKey = 'btts';
-  } else if (pHome > 0.43) {
-    bestKey = 'home';
-  } else if (pOver25 > 0.52 && totalXg > 2.5) {
-    bestKey = 'over25';
+  if (hasRealOdds) {
+    const valueOf = (proba, mkt) => calcValue(probaToQuote(proba, 0.05), mkt);
+    const markets = [
+      { k: 'home',   mkt: mktHome,   v: valueOf(pHome,   mktHome),   p: pHome   },
+      { k: 'draw',   mkt: mktDraw,   v: valueOf(pDraw,   mktDraw),   p: pDraw   },
+      { k: 'away',   mkt: mktAway,   v: valueOf(pAway,   mktAway),   p: pAway   },
+      { k: 'over25', mkt: mktOver25, v: valueOf(pOver25, mktOver25), p: pOver25 },
+      { k: 'btts',   mkt: mktBTTS,   v: valueOf(pBTTS,   mktBTTS),   p: pBTTS   },
+    ];
+    // Parmi les marchés avec cote bookmaker >= 1.90, choisir la meilleure value
+    const eligible = markets.filter(c => c.mkt >= 1.90 && c.p >= 0.10);
+    if (eligible.length > 0) {
+      bestKey = eligible.sort((a, b) => b.v - a.v)[0].k;
+    } else {
+      // Aucun marché >= 1.90 → prendre le plus probable (cas extrême)
+      bestKey = markets.sort((a, b) => b.p - a.p)[0].k;
+    }
   } else {
-    bestKey = 'home'; // fallback domicile (avantage terrain)
+    // Pas de vraies cotes : logique probabiliste pure
+    if (pHome > 0.58) {
+      bestKey = 'home';
+    } else if (pAway > 0.50) {
+      bestKey = 'away';
+    } else if (totalXg > 2.9 && pOver25 > 0.58) {
+      bestKey = 'over25';
+    } else if (pBTTS > 0.62 && homeXg > 1.2 && awayXg > 1.0) {
+      bestKey = 'btts';
+    } else if (pHome > 0.43) {
+      bestKey = 'home';
+    } else if (pOver25 > 0.52 && totalXg > 2.5) {
+      bestKey = 'over25';
+    } else {
+      bestKey = 'home';
+    }
   }
 
   // ── Construction du résultat ──────────────────────────
