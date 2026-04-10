@@ -28,54 +28,97 @@ const FOOTBALL_LEAGUES = [
   'Champions League',
 ];
 
-// ─── Helper : analyser un lot de matchs et retourner le meilleur pick ─
-async function findBestPick(sport, league, date) {
-  const fixtures = await apiSports.getFixtures({ sport, league, date });
-  if (!fixtures.length) return null;
-  if (sport === 'football' && fixtures[0].isDemo) return null;
+// ─── Algorithme bookmakers (port direct du script utilisateur) ───
+const axios = require('axios');
 
-  const enriched = await Promise.all(
-    fixtures.slice(0, 3).map(async (fixture) => {
-      const [stats, injuries, odds] = await Promise.all([
-        apiSports.getTeamStats(fixture),
-        apiSports.getInjuries(fixture),
-        apiSports.getOdds(fixture),
-      ]);
-      return { ...fixture, stats, injuries, odds };
-    })
-  );
+const LEAGUE_MAP = {
+  'PL': 'Premier League', 'ELC': 'Championship', 'PD': 'La Liga',
+  'SD': 'La Liga 2', 'BL1': 'Bundesliga', 'BL2': '2. Bundesliga',
+  'SA': 'Serie A', 'SB': 'Serie B', 'FL1': 'Ligue 1', 'FL2': 'Ligue 2',
+};
 
-  const predictions = await Promise.all(enriched.map(f => prediction.predict(f)));
-  const validPicks  = predictions.filter(p => p.cote_marche >= 1.80);
-  if (!validPicks.length) return null;
-  return validPicks.sort((a, b) => (b.cote_marche * b.confidence) - (a.cote_marche * a.confidence))[0];
+function cleanName(n) {
+  return n.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/fc|cf|as|real|stade|united|city|town|sporting|bayer|atletico|de /g, '').trim();
 }
 
-// ─── Scan toutes les ligues sur les 3 prochains jours ────────
-async function scanAllLeagues() {
-  const dates = [0, 1, 2].map(n => {
-    const d = new Date();
-    d.setDate(d.getDate() + n);
-    return d.toISOString().split('T')[0];
+async function runAlgo() {
+  const now    = new Date();
+  const future = new Date();
+  future.setDate(now.getDate() + 3);
+  const dateFrom = now.toISOString().split('T')[0];
+  const dateTo   = future.toISOString().split('T')[0];
+
+  const [resF, resO] = await Promise.all([
+    axios.get(`https://api.football-data.org/v4/matches?dateFrom=${dateFrom}&dateTo=${dateTo}`, {
+      headers: { 'X-Auth-Token': process.env.FOOTBALL_DATA_KEY },
+    }),
+    axios.get(`https://api.the-odds-api.com/v4/sports/soccer/odds/?apiKey=402dfe4ed1b2e82526e91725d6f02438&regions=eu&markets=h2h,totals`),
+  ]);
+
+  const matches  = resF.data.matches || [];
+  const oddsData = resO.data;
+  const picks    = [];
+
+  matches.forEach(m => {
+    const leagueCode = m.competition.code;
+    if (!LEAGUE_MAP[leagueCode]) return;
+
+    const matchOdds = oddsData.find(o =>
+      cleanName(m.homeTeam.name).includes(cleanName(o.home_team)) ||
+      cleanName(o.home_team).includes(cleanName(m.homeTeam.name))
+    );
+    if (!matchOdds || !matchOdds.bookmakers.length) return;
+
+    const markets = matchOdds.bookmakers[0].markets;
+    const h2h    = markets.find(mk => mk.key === 'h2h')?.outcomes;
+    const totals = markets.find(mk => mk.key === 'totals')?.outcomes;
+    if (!h2h) return;
+
+    const home = h2h.find(x => x.name === matchOdds.home_team);
+    const away = h2h.find(x => x.name === matchOdds.away_team);
+    const draw = h2h.find(x => x.name.toLowerCase().includes('draw'));
+    if (!home || !away || !draw) return;
+
+    const margin   = (1/home.price) + (1/away.price) + (1/draw.price);
+    const probHome = ((1/home.price) / margin) * 100;
+    const probAway = ((1/away.price) / margin) * 100;
+
+    const matchStr = `${m.homeTeam.name} vs ${m.awayTeam.name}`;
+    const date     = m.utcDate.split('T')[0];
+    const league   = LEAGUE_MAP[leagueCode];
+
+    if (home.price >= 1.80 && probHome > 50) {
+      picks.push({ match: matchStr, league, date, pick: `Victoire ${m.homeTeam.name}`, pick_key: 'home', bet_type: 'Résultat', cote_marche: home.price, prob: probHome });
+    }
+    if (away.price >= 1.80 && probAway > 50) {
+      picks.push({ match: matchStr, league, date, pick: `Victoire ${m.awayTeam.name}`, pick_key: 'away', bet_type: 'Résultat', cote_marche: away.price, prob: probAway });
+    }
+
+    const over25 = totals?.find(x => x.name.toLowerCase() === 'over');
+    if (over25 && over25.price >= 1.80) {
+      const under25   = totals?.find(x => x.name.toLowerCase() === 'under');
+      const overMargin = (1/over25.price) + (1/(under25?.price || 1.90));
+      const probOver  = ((1/over25.price) / overMargin) * 100;
+      if (probOver > 50) {
+        picks.push({ match: matchStr, league, date, pick: 'Plus de 2.5 buts', pick_key: 'over25', bet_type: 'Nombre de buts', cote_marche: over25.price, prob: probOver });
+      }
+    }
   });
 
-  const tasks = [];
-  for (const date of dates) {
-    for (const league of FOOTBALL_LEAGUES) {
-      tasks.push(
-        findBestPick('football', league, date)
-          .then(pick => pick ? { ...pick, league, date } : null)
-          .catch(err => { console.error(`[scan] ${league} ${date}:`, err.message); return null; })
-      );
-    }
-  }
+  if (!picks.length) return null;
 
-  const results = await Promise.all(tasks);
-  const valid   = results.filter(Boolean);
-  if (!valid.length) return null;
-
-  // Meilleur pick : valeur attendue maximale (cote × prob implicite)
-  return valid.sort((a, b) => (b.cote_marche * b.confidence) - (a.cote_marche * a.confidence))[0];
+  // Meilleur pick : valeur attendue max (cote × prob)
+  const best = picks.sort((a, b) => (b.cote_marche * b.prob) - (a.cote_marche * a.prob))[0];
+  best.confidence = Math.min(92, Math.max(40, Math.round(best.prob * 0.85 + 8)));
+  best.value      = parseFloat(((best.cote_marche * best.prob / 100 - 1) * 100).toFixed(1));
+  best.cote_ia    = parseFloat((100 / best.prob).toFixed(2));
+  best.factors    = [`Probabilité implicite : ${Math.round(best.prob)}%`, `Cote marché : ${best.cote_marche.toFixed(2)}`];
+  best.odds_are_real = true;
+  best.bookmakers    = {};
+  best.injuries      = [];
+  best.team_stats    = {};
+  return best;
 }
 
 // ─── Middleware : vérifier quota ─────────────────────
@@ -116,7 +159,7 @@ router.post('/generate', requireAuth, checkQuota, async (req, res) => {
   const { info = '' } = req.body || {};
 
   try {
-    const bestPick = await scanAllLeagues();
+    const bestPick = await runAlgo();
 
     if (!bestPick) {
       return res.status(404).json({ error: 'Aucun pick éligible trouvé sur les 3 prochains jours.' });
