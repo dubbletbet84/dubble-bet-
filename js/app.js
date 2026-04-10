@@ -245,12 +245,13 @@ async function _runAlgoBrowser() {
   const dateFrom = now.toISOString().split('T')[0];
   const dateTo   = future.toISOString().split('T')[0];
 
-  const [resF, resO] = await Promise.all([
-    fetch(`https://api.football-data.org/v4/matches?dateFrom=${dateFrom}&dateTo=${dateTo}`, {
-      headers: { 'X-Auth-Token': '0bebba720a484535a0105713e0fc7d66' }
-    }),
-    fetch('https://api.the-odds-api.com/v4/sports/soccer/odds/?apiKey=402dfe4ed1b2e82526e91725d6f02438&regions=eu&markets=h2h,totals')
-  ]);
+  const resF = await fetch(`https://api.football-data.org/v4/matches?dateFrom=${dateFrom}&dateTo=${dateTo}`, {
+    headers: { 'X-Auth-Token': '0bebba720a484535a0105713e0fc7d66' }
+  }).catch(() => { throw new Error('football-data.org inaccessible depuis ce navigateur'); });
+
+  const resO = await fetch('https://api.the-odds-api.com/v4/sports/soccer/odds/?apiKey=402dfe4ed1b2e82526e91725d6f02438&regions=eu&markets=h2h,totals')
+    .catch(() => { throw new Error('The Odds API inaccessible depuis ce navigateur'); });
+
   const dataF = await resF.json();
   const dataO = await resO.json();
 
