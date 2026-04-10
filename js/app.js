@@ -227,26 +227,9 @@ async function callAPI(endpoint, options = {}) {
   return body;
 }
 
-// Génère un pronostic (appel backend ou données démo)
-async function generatePronostic({ sport, league, date, info = '' }) {
-  const result = await callAPI('/pronos/generate', {
-    method: 'POST',
-    body: JSON.stringify({ sport, league, date, info }),
-  });
-
-  // Pas de match → lancer une erreur claire avec les alternatives
-  if (result.no_match) {
-    const alts = (result.available_leagues || []).join(', ');
-    const msg  = `Pas de match ${result.requested_league} à la date sélectionnée.`
-               + (alts ? ` Compétitions disponibles : ${alts}.` : ' Aucune autre compétition disponible ce jour.');
-    const err  = new Error(msg);
-    err.no_match           = true;
-    err.available_leagues  = result.available_leagues || [];
-    err.requested_league   = result.requested_league;
-    err.date               = result.date;
-    throw err;
-  }
-  return result;
+// Génère un pronostic — scanne automatiquement toutes les ligues
+async function generatePronostic() {
+  return callAPI('/pronos/generate', { method: 'POST', body: JSON.stringify({}) });
 }
 
 // Re-analyse avec info terrain

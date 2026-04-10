@@ -18,29 +18,20 @@ const supabase = createClient(
 // Quotas par plan
 const PLAN_QUOTAS = { starter: 5, pro: 10, expert: 30, illimite: Infinity, unit: 1 };
 
-// Ligues alternatives par sport (pour suggestion si cote trop risquée)
-const ALT_LEAGUES = {
-  football:   ['Premier League', 'La Liga', 'Bundesliga', 'Serie A', 'Ligue 1', 'Champions League'],
-  tennis:     ['ATP Tour'],
-  basketball: ['NBA', 'Euroleague'],
-  rugby:      ['Top 14'],
-  mma:        ['UFC'],
-  boxe:       ['UFC'],
-};
-
-// ─── Helper : vérifie si une ligue a de vrais matchs ce jour ─
-async function hasRealMatches(sport, league, date) {
-  const fixtures = await apiSports.getFixtures({ sport, league, date });
-  if (!fixtures.length) return false;
-  if (sport === 'football') return !fixtures[0].isDemo;
-  return true;
-}
+// Ligues supportées (scan automatique)
+const FOOTBALL_LEAGUES = [
+  'Premier League', 'Championship',
+  'La Liga', 'La Liga 2',
+  'Bundesliga', '2. Bundesliga',
+  'Serie A', 'Serie B',
+  'Ligue 1', 'Ligue 2',
+  'Champions League',
+];
 
 // ─── Helper : analyser un lot de matchs et retourner le meilleur pick ─
 async function findBestPick(sport, league, date) {
-  let fixtures = await apiSports.getFixtures({ sport, league, date });
+  const fixtures = await apiSports.getFixtures({ sport, league, date });
   if (!fixtures.length) return null;
-  // Football : uniquement des vrais matchs (pas de démo)
   if (sport === 'football' && fixtures[0].isDemo) return null;
 
   const enriched = await Promise.all(
@@ -55,9 +46,32 @@ async function findBestPick(sport, league, date) {
   );
 
   const predictions = await Promise.all(enriched.map(f => prediction.predict(f)));
-  const validPicks  = predictions.filter(p => p.cote_marche >= 1.90);
+  const validPicks  = predictions.filter(p => p.cote_marche >= 1.80);
   if (!validPicks.length) return null;
-  return validPicks.sort((a, b) => b.value - a.value)[0];
+  return validPicks.sort((a, b) => (b.cote_marche * b.confidence) - (a.cote_marche * a.confidence))[0];
+}
+
+// ─── Scan toutes les ligues sur les 3 prochains jours ────────
+async function scanAllLeagues() {
+  const dates = [0, 1, 2].map(n => {
+    const d = new Date();
+    d.setDate(d.getDate() + n);
+    return d.toISOString().split('T')[0];
+  });
+
+  const tasks = [];
+  for (const date of dates) {
+    for (const league of FOOTBALL_LEAGUES) {
+      tasks.push(findBestPick('football', league, date).then(pick => pick ? { ...pick, league, date } : null));
+    }
+  }
+
+  const results = await Promise.all(tasks);
+  const valid   = results.filter(Boolean);
+  if (!valid.length) return null;
+
+  // Meilleur pick : valeur attendue maximale (cote × prob implicite)
+  return valid.sort((a, b) => (b.cote_marche * b.confidence) - (a.cote_marche * a.confidence))[0];
 }
 
 // ─── Middleware : vérifier quota ─────────────────────
@@ -93,50 +107,22 @@ async function checkQuota(req, res, next) {
 }
 
 // ─── POST /api/pronos/generate ───────────────────────
-// Corps : { sport, league, date, info? }
+// Corps : {} — scan automatique de toutes les ligues sur 3 jours
 router.post('/generate', requireAuth, checkQuota, async (req, res) => {
-  const { sport, league, date, info = '' } = req.body;
-
-  if (!sport || !league || !date) {
-    return res.status(400).json({ error: 'sport, league et date sont requis' });
-  }
+  const { info = '' } = req.body || {};
 
   try {
-    // 1. Chercher un pick valide pour la date/ligue demandée
-    let bestPick   = await findBestPick(sport, league, date);
-    let usedLeague = league;
-    let usedDate   = date;
+    const bestPick = await scanAllLeagues();
 
-    // 2. Si aucun match réel dans la ligue demandée → trouver les ligues disponibles
     if (!bestPick) {
-      const allLeagues    = ALT_LEAGUES[sport] || [];
-      const otherLeagues  = allLeagues.filter(l => l !== league);
-
-      // Vérifier en parallèle quelles ligues ont des matchs réels ce jour
-      const checks = await Promise.all(
-        otherLeagues.map(async l => ({
-          league: l,
-          hasMatch: await hasRealMatches(sport, l, date),
-        }))
-      );
-      const available = checks.filter(c => c.hasMatch).map(c => c.league);
-
-      // Retourner la liste des ligues disponibles pour que l'utilisateur choisisse
-      return res.status(200).json({
-        no_match:          true,
-        requested_league:  league,
-        date,
-        message:           `Pas de match ${league} le ${date}.`,
-        available_leagues: available,
-      });
+      return res.status(404).json({ error: 'Aucun pick éligible trouvé sur les 3 prochains jours.' });
     }
 
-    // 5. Sauvegarder en base
     const pronoData = {
       user_id:      req.user.id,
-      sport,
-      league:       usedLeague,
-      date:         usedDate,
+      sport:        'football',
+      league:       bestPick.league,
+      date:         bestPick.date,
       match:        bestPick.match,
       pick:         bestPick.pick,
       pick_key:     bestPick.pick_key     || null,
