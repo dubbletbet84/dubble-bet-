@@ -173,7 +173,6 @@ router.post('/generate', requireAuth, checkQuota, async (req, res) => {
       match:        bestPick.match,
       pick:         bestPick.pick,
       pick_key:     bestPick.pick_key     || null,
-      bet_type:     bestPick.bet_type     || 'Résultat',
       odds_are_real:bestPick.odds_are_real || false,
       cote_ia:      bestPick.cote_ia,
       cote_marche:  bestPick.cote_marche,
