@@ -287,9 +287,6 @@
         }
       }
 
-      // Date par défaut = aujourd'hui
-      document.getElementById('dateInput').value = new Date().toISOString().split('T')[0];
-
       // Charger profil utilisateur
       loadUserProfile(session.user);
 
@@ -380,23 +377,6 @@
       }
     }
 
-    // ─── Sélection sport dans sidebar ─────────────────
-    function selectSport(btn) {
-      document.querySelectorAll('.sport-btn').forEach(b => b.classList.remove('active'));
-      btn.classList.add('active');
-      document.getElementById('sportSelect').value = btn.dataset.sport;
-      updateLeagues();
-    }
-
-    function updateLeagues() {
-      const sport  = document.getElementById('sportSelect').value;
-      const leagues = window.App.DEMO_LEAGUES[sport] || [];
-      const sel    = document.getElementById('leagueSelect');
-      sel.innerHTML = leagues.map(l =>
-        `<option value="${l.name}">${l.country} ${l.name}</option>`
-      ).join('');
-    }
-
     // ─── Génération pronostic ──────────────────────────
     async function handleGenerate() {
       // UI loading
@@ -453,16 +433,6 @@
         .join('');
       panel.style.display = 'block';
       document.getElementById('analysisPanel').style.display = 'none';
-    }
-
-    function selectAltLeague(league) {
-      const sel = document.getElementById('leagueSelect');
-      if (sel) {
-        for (const opt of sel.options) {
-          if (opt.text === league || opt.value === league) { sel.value = opt.value; break; }
-        }
-      }
-      document.getElementById('generateBtn')?.click();
     }
 
     // ─── Rendu du panneau d'analyse ───────────────────
