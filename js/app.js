@@ -227,9 +227,83 @@ async function callAPI(endpoint, options = {}) {
   return body;
 }
 
-// Génère un pronostic — scanne automatiquement toutes les ligues
+// ─── Algorithme bookmakers (port direct script utilisateur) ──────
+const LEAGUE_MAP_ALGO = {
+  'PL':'Premier League','ELC':'Championship','PD':'La Liga',
+  'SD':'La Liga 2','BL1':'Bundesliga','BL2':'2. Bundesliga',
+  'SA':'Serie A','SB':'Serie B','FL1':'Ligue 1','FL2':'Ligue 2',
+};
+
+function _cleanName(n) {
+  return n.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'')
+    .replace(/fc|cf|as|real|stade|united|city|town|sporting|bayer|atletico|de /g,'').trim();
+}
+
+async function _runAlgoBrowser() {
+  const now = new Date(), future = new Date();
+  future.setDate(now.getDate() + 3);
+  const dateFrom = now.toISOString().split('T')[0];
+  const dateTo   = future.toISOString().split('T')[0];
+
+  const [resF, resO] = await Promise.all([
+    fetch(`https://api.football-data.org/v4/matches?dateFrom=${dateFrom}&dateTo=${dateTo}`, {
+      headers: { 'X-Auth-Token': '0bebba720a484535a0105713e0fc7d66' }
+    }),
+    fetch('https://api.the-odds-api.com/v4/sports/soccer/odds/?apiKey=402dfe4ed1b2e82526e91725d6f02438&regions=eu&markets=h2h,totals')
+  ]);
+  const dataF = await resF.json();
+  const dataO = await resO.json();
+
+  const picks = [];
+  (dataF.matches || []).forEach(m => {
+    if (!LEAGUE_MAP_ALGO[m.competition.code]) return;
+    const matchOdds = dataO.find(o =>
+      _cleanName(m.homeTeam.name).includes(_cleanName(o.home_team)) ||
+      _cleanName(o.home_team).includes(_cleanName(m.homeTeam.name))
+    );
+    if (!matchOdds || !matchOdds.bookmakers.length) return;
+    const markets = matchOdds.bookmakers[0].markets;
+    const h2h    = markets.find(mk => mk.key === 'h2h')?.outcomes;
+    const totals = markets.find(mk => mk.key === 'totals')?.outcomes;
+    if (!h2h) return;
+    const home = h2h.find(x => x.name === matchOdds.home_team);
+    const away = h2h.find(x => x.name === matchOdds.away_team);
+    const draw = h2h.find(x => x.name.toLowerCase().includes('draw'));
+    if (!home || !away || !draw) return;
+    const margin   = (1/home.price) + (1/away.price) + (1/draw.price);
+    const probHome = ((1/home.price) / margin) * 100;
+    const probAway = ((1/away.price) / margin) * 100;
+    const matchStr = `${m.homeTeam.name} vs ${m.awayTeam.name}`;
+    const date     = m.utcDate.split('T')[0];
+    const league   = LEAGUE_MAP_ALGO[m.competition.code];
+    if (home.price >= 1.80 && probHome > 50)
+      picks.push({ match: matchStr, league, date, pick: `Victoire ${m.homeTeam.name}`, pick_key: 'home', cote_marche: home.price, prob: probHome });
+    if (away.price >= 1.80 && probAway > 50)
+      picks.push({ match: matchStr, league, date, pick: `Victoire ${m.awayTeam.name}`, pick_key: 'away', cote_marche: away.price, prob: probAway });
+    const over25 = totals?.find(x => x.name.toLowerCase() === 'over');
+    if (over25 && over25.price >= 1.80) {
+      const under25    = totals?.find(x => x.name.toLowerCase() === 'under');
+      const overMargin = (1/over25.price) + (1/(under25?.price || 1.90));
+      const probOver   = ((1/over25.price) / overMargin) * 100;
+      if (probOver > 50)
+        picks.push({ match: matchStr, league, date, pick: 'Plus de 2.5 buts', pick_key: 'over25', cote_marche: over25.price, prob: probOver });
+    }
+  });
+  if (!picks.length) return null;
+  const best = picks.sort((a, b) => (b.cote_marche * b.prob) - (a.cote_marche * a.prob))[0];
+  return {
+    ...best,
+    cote_ia:    parseFloat((100 / best.prob).toFixed(2)),
+    confidence: Math.min(92, Math.max(40, Math.round(best.prob * 0.85 + 8))),
+    value:      parseFloat(((best.cote_marche * best.prob / 100 - 1) * 100).toFixed(1)),
+  };
+}
+
+// Génère un pronostic — algo tourne dans le navigateur, backend sauvegarde
 async function generatePronostic() {
-  return callAPI('/pronos/generate', { method: 'POST', body: JSON.stringify({}) });
+  const pick = await _runAlgoBrowser();
+  if (!pick) throw new Error('Aucun pick éligible trouvé sur les 3 prochains jours.');
+  return callAPI('/pronos/save', { method: 'POST', body: JSON.stringify(pick) });
 }
 
 // Re-analyse avec info terrain

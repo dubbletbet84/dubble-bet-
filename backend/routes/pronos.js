@@ -156,32 +156,28 @@ async function checkQuota(req, res, next) {
   next();
 }
 
-// ─── POST /api/pronos/generate ───────────────────────
-// Corps : {} — scan automatique de toutes les ligues sur 3 jours
-router.post('/generate', requireAuth, checkQuota, async (req, res) => {
-  const { info = '' } = req.body || {};
+// ─── POST /api/pronos/save ────────────────────────────
+// L'algo tourne côté navigateur, le backend sauvegarde uniquement
+router.post('/save', requireAuth, checkQuota, async (req, res) => {
+  const pick = req.body;
+  if (!pick || !pick.match || !pick.pick) {
+    return res.status(400).json({ error: 'Données pick manquantes' });
+  }
 
   try {
-    const bestPick = await runAlgo();
-
-    if (!bestPick) {
-      return res.status(404).json({ error: 'Aucun pick éligible trouvé sur les 3 prochains jours.' });
-    }
-
     const pronoData = {
       user_id:     req.user.id,
       sport:       'football',
-      league:      bestPick.league,
-      date:        bestPick.date,
-      match:       bestPick.match,
-      pick:        bestPick.pick,
-      cote_ia:     bestPick.cote_ia,
-      cote_marche: bestPick.cote_marche,
-      confidence:  bestPick.confidence,
-      value:       bestPick.value,
+      league:      pick.league,
+      date:        pick.date,
+      match:       pick.match,
+      pick:        pick.pick,
+      cote_ia:     pick.cote_ia,
+      cote_marche: pick.cote_marche,
+      confidence:  pick.confidence,
+      value:       pick.value,
       result:      'pending',
       reanalyze_count: 0,
-      extra_info:  info || null,
       created_at:  new Date().toISOString(),
     };
 
@@ -192,10 +188,9 @@ router.post('/generate', requireAuth, checkQuota, async (req, res) => {
       .single();
 
     if (error) throw error;
-
     res.json(saved);
   } catch (err) {
-    console.error('[pronos/generate]', err);
+    console.error('[pronos/save]', err);
     res.status(500).json({ error: err.message });
   }
 });
