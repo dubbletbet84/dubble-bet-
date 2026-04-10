@@ -62,7 +62,11 @@ async function scanAllLeagues() {
   const tasks = [];
   for (const date of dates) {
     for (const league of FOOTBALL_LEAGUES) {
-      tasks.push(findBestPick('football', league, date).then(pick => pick ? { ...pick, league, date } : null));
+      tasks.push(
+        findBestPick('football', league, date)
+          .then(pick => pick ? { ...pick, league, date } : null)
+          .catch(err => { console.error(`[scan] ${league} ${date}:`, err.message); return null; })
+      );
     }
   }
 

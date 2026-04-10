@@ -526,7 +526,9 @@ async function getMmaFixtures(league, date) {
 }
 
 // ─── getFixtures (point d'entrée) ────────────────────
-async function getFixtures({ sport = 'football', league, date }) {
+async function getFixtures(params) {
+  if (!params) return [];
+  const { sport = 'football', league, date } = params;
   if (sport === 'football')   return getFootballFixtures(league, date);
   if (sport === 'basketball') return getBasketballFixtures(league, date);
   if (sport === 'mma')        return getMmaFixtures(league, date);
