@@ -74,181 +74,113 @@ function enrichOdds(odds, pickKey) {
 }
 
 // ===================================================
-// ⚽ FOOTBALL — Poisson bivariée + xG + blessures
+// ⚽ FOOTBALL — Algorithme probabilités implicites bookmakers
+// Critères : cote >= 1.80 ET probabilité implicite > 50%
+// Marchés : 1X2 (h2h) + Totals (over/under 2.5)
 // ===================================================
 
 function predictFootball(data) {
-  const stats    = data.stats || {};
-  const injuries = data.injuries || [];
   const odds     = data.odds || {};
   const home     = data.homeTeam || {};
   const away     = data.awayTeam || {};
-  const hs       = stats.home || {};
-  const as_      = stats.away || {};
+  const injuries = data.injuries || [];
+  const homeName = home.name || 'Domicile';
+  const awayName = away.name || 'Extérieur';
 
-  // Si stats réelles (classement), utiliser buts marqués/encaissés comme proxy xG
-  // Sinon utiliser les valeurs simulées
-  const homeGoalsFor  = parseFloat(hs.goals || 1.4);
-  const awayGoalsFor  = parseFloat(as_.goals || 1.1);
-  const homeGoalsAga  = parseFloat(hs.goals_against || 1.1);
-  const awayGoalsAga  = parseFloat(as_.goals_against || 1.3);
+  // Cotes moyennes inter-bookmakers
+  const avgHome    = calcAvgCote(odds, 'home');
+  const avgDraw    = calcAvgCote(odds, 'draw');
+  const avgAway    = calcAvgCote(odds, 'away');
+  const avgOver25  = calcAvgCote(odds, 'over25');
+  const avgUnder25 = calcAvgCote(odds, 'under25');
 
-  // xG domicile = moyenne buts marqués × attaque adverse (buts encaissés)
-  let homeXg = (homeGoalsFor + awayGoalsAga) / 2;
-  let awayXg = (awayGoalsFor + homeGoalsAga) / 2;
-
-  const homeForm = parseForm(hs.form || '50%');
-  const awayForm = parseForm(as_.form || '50%');
-  homeXg *= (0.7 + homeForm * 0.6);
-  awayXg *= (0.7 + awayForm * 0.6);
-
-  const homeInjured = injuries.filter(i => i.team === home.name).length;
-  const awayInjured = injuries.filter(i => i.team === away.name).length;
-  homeXg *= Math.max(0.7, 1 - homeInjured * 0.08);
-  awayXg *= Math.max(0.7, 1 - awayInjured * 0.08);
-
-  homeXg *= (1 + homeAdvantageBonus('football'));
-
-  // ── Distribution Poisson : tous les scénarios ──
-  const maxGoals = 9;
-  const hp = Array.from({ length: maxGoals + 1 }, (_, i) => poissonPmf(i, homeXg));
-  const ap = Array.from({ length: maxGoals + 1 }, (_, i) => poissonPmf(i, awayXg));
-
-  let pHome = 0, pDraw = 0, pAway = 0;
-  let pOver15 = 0, pOver25 = 0, pOver35 = 0, pBTTS = 0;
-
-  for (let i = 0; i <= maxGoals; i++) {
-    for (let j = 0; j <= maxGoals; j++) {
-      const p = hp[i] * ap[j];
-      if (i > j) pHome += p; else if (i === j) pDraw += p; else pAway += p;
-      if (i + j >= 2) pOver15 += p;
-      if (i + j >= 3) pOver25 += p;
-      if (i + j >= 4) pOver35 += p;
-      if (i > 0 && j > 0) pBTTS += p;
-    }
+  // Pas de cotes réelles → impossible de prédire
+  if (!avgHome || !avgDraw || !avgAway) {
+    return {
+      match: `${homeName} vs ${awayName}`,
+      pick: `Victoire ${homeName}`, pick_key: 'home', bet_type: 'Résultat',
+      cote_ia: 2.0, cote_marche: 0, confidence: 0, value: 0,
+      odds_are_real: false, factors: [], bookmakers: {}, injuries, team_stats: data.stats || {},
+    };
   }
 
-  const homeName  = home.name || 'Domicile';
-  const awayName  = away.name || 'Extérieur';
-  const totalXg   = homeXg + awayXg;
-  const isRealStats = hs.position != null;
+  // Probabilités implicites déviguées (algorithme bookmakers)
+  const margin3way = (1/avgHome) + (1/avgDraw) + (1/avgAway);
+  const probHome   = (1/avgHome) / margin3way;
+  const probDraw   = (1/avgDraw) / margin3way;
+  const probAway   = (1/avgAway) / margin3way;
 
-  // ── Cotes réelles disponibles ? ──────────────────────
-  // calcAvgCote > 0 seulement si The Odds API a retourné des données
-  // Cotes UNIQUEMENT depuis The Odds API (0 si non disponible)
-  const hasRealOdds = !!(odds && Object.keys(odds).length > 0);
-  const p1X = pHome + pDraw;
-  const pX2 = pDraw + pAway;
-  const p12 = pHome + pAway;
-
-  const mktHome    = calcAvgCote(odds, 'home');
-  const mktDraw    = calcAvgCote(odds, 'draw');
-  const mktAway    = calcAvgCote(odds, 'away');
-  const mktOver25  = calcAvgCote(odds, 'over25');
-  const mktBTTS    = calcAvgCote(odds, 'btts');
-  const mkt1X      = calcAvgCote(odds, '1X');
-  const mktX2      = calcAvgCote(odds, 'X2');
-  const mkt12      = calcAvgCote(odds, '12');
-  const mktOver35  = calcAvgCote(odds, 'over35');
-  const mktUnder25 = calcAvgCote(odds, 'under25');
-  const mktBTTSNo  = calcAvgCote(odds, 'bttsNo');
-
-  // ── Sélection du pick ─────────────────────────────────
-  // Uniquement parmi les marchés avec VRAIE cote bookmaker >= 1.90
-  let bestKey;
-
-  const valueOf = (proba, mkt) => calcValue(probaToQuote(proba, 0.05), mkt);
-  const allMarkets = [
-    { k: 'home',    mkt: mktHome,    v: valueOf(pHome,    mktHome),    p: pHome    },
-    { k: 'draw',    mkt: mktDraw,    v: valueOf(pDraw,    mktDraw),    p: pDraw    },
-    { k: 'away',    mkt: mktAway,    v: valueOf(pAway,    mktAway),    p: pAway    },
-    { k: 'over25',  mkt: mktOver25,  v: valueOf(pOver25,  mktOver25),  p: pOver25  },
-    { k: 'btts',    mkt: mktBTTS,    v: valueOf(pBTTS,    mktBTTS),    p: pBTTS    },
-    { k: '1X',      mkt: mkt1X,      v: valueOf(p1X,      mkt1X),      p: p1X      },
-    { k: 'X2',      mkt: mktX2,      v: valueOf(pX2,      mktX2),      p: pX2      },
-    { k: '12',      mkt: mkt12,      v: valueOf(p12,      mkt12),      p: p12      },
-    { k: 'over35',  mkt: mktOver35,  v: valueOf(pOver35,  mktOver35),  p: pOver35  },
-    { k: 'under25', mkt: mktUnder25, v: valueOf(1-pOver25,mktUnder25), p: 1-pOver25},
-    { k: 'bttsNo',  mkt: mktBTTSNo,  v: valueOf(1-pBTTS,  mktBTTSNo),  p: 1-pBTTS  },
-  ].filter(c => c.mkt > 0); // seulement les marchés avec vraie cote bookmaker
-
-  const eligible = allMarkets.filter(c => c.mkt >= 1.90 && c.p >= 0.10);
-  if (eligible.length > 0) {
-    bestKey = eligible.sort((a, b) => b.v - a.v)[0].k;
-  } else if (allMarkets.length > 0) {
-    bestKey = allMarkets.sort((a, b) => b.p - a.p)[0].k;
-  } else {
-    bestKey = 'home'; // fallback si aucune cote dispo (sera filtré par pronos.js)
+  let probOver25 = null;
+  if (avgOver25 && avgUnder25) {
+    const mTotals = (1/avgOver25) + (1/avgUnder25);
+    probOver25 = (1/avgOver25) / mTotals;
   }
 
-  // ── Construction du résultat ──────────────────────────
-  const pickMap = {
-    home:    { bet_type: 'Résultat',       pick: `Victoire ${homeName}`,         proba: pHome,     cote_marche: mktHome,    cote_ia: probaToQuote(pHome,    0.05) },
-    draw:    { bet_type: 'Résultat',       pick: 'Match nul',                     proba: pDraw,     cote_marche: mktDraw,    cote_ia: probaToQuote(pDraw,    0.05) },
-    away:    { bet_type: 'Résultat',       pick: `Victoire ${awayName}`,          proba: pAway,     cote_marche: mktAway,    cote_ia: probaToQuote(pAway,    0.05) },
-    over25:  { bet_type: 'Nombre de buts', pick: 'Plus de 2.5 buts',              proba: pOver25,   cote_marche: mktOver25,  cote_ia: probaToQuote(pOver25,  0.05) },
-    btts:    { bet_type: 'Les 2 marquent', pick: 'Les 2 équipes marquent — Oui',  proba: pBTTS,     cote_marche: mktBTTS,    cote_ia: probaToQuote(pBTTS,    0.05) },
-    '1X':    { bet_type: 'Double chance',  pick: `${homeName} ou Nul`,            proba: p1X,       cote_marche: mkt1X,      cote_ia: probaToQuote(p1X,      0.04) },
-    'X2':    { bet_type: 'Double chance',  pick: `${awayName} ou Nul`,            proba: pX2,       cote_marche: mktX2,      cote_ia: probaToQuote(pX2,      0.04) },
-    '12':    { bet_type: 'Double chance',  pick: `${homeName} ou ${awayName}`,    proba: p12,       cote_marche: mkt12,      cote_ia: probaToQuote(p12,      0.04) },
-    over35:  { bet_type: 'Nombre de buts', pick: 'Plus de 3.5 buts',              proba: pOver35,   cote_marche: mktOver35,  cote_ia: probaToQuote(pOver35,  0.05) },
-    under25: { bet_type: 'Nombre de buts', pick: 'Moins de 2.5 buts',             proba: 1-pOver25, cote_marche: mktUnder25, cote_ia: probaToQuote(1-pOver25,0.05) },
-    bttsNo:  { bet_type: 'Les 2 marquent', pick: 'Les 2 équipes marquent — Non',  proba: 1-pBTTS,   cote_marche: mktBTTSNo,  cote_ia: probaToQuote(1-pBTTS,  0.05) },
-  };
+  // Picks éligibles : cote >= 1.80 ET probabilité implicite > 50%
+  const candidates = [];
+  if (avgHome >= 1.80 && probHome > 0.50)
+    candidates.push({ k: 'home',   cote: avgHome,   prob: probHome,   label: `Victoire ${homeName}`, type: 'Résultat'       });
+  if (avgAway >= 1.80 && probAway > 0.50)
+    candidates.push({ k: 'away',   cote: avgAway,   prob: probAway,   label: `Victoire ${awayName}`, type: 'Résultat'       });
+  if (avgOver25 && avgOver25 >= 1.80 && probOver25 > 0.50)
+    candidates.push({ k: 'over25', cote: avgOver25, prob: probOver25, label: 'Plus de 2.5 buts',    type: 'Nombre de buts' });
 
-  const best = { pick_key: bestKey, ...pickMap[bestKey] };
-  best.value      = calcValue(best.cote_ia, best.cote_marche);
-  best.confidence = calcConfidence(best.proba, best.value, homeInjured * 0.05);
+  if (!candidates.length) {
+    return {
+      match: `${homeName} vs ${awayName}`,
+      pick: `Victoire ${homeName}`, pick_key: 'home', bet_type: 'Résultat',
+      cote_ia: parseFloat((1/probHome).toFixed(2)), cote_marche: 0,
+      confidence: 0, value: 0, odds_are_real: true,
+      factors: ['Aucun pick éligible (critères non remplis)'],
+      bookmakers: odds, injuries, team_stats: data.stats || {},
+    };
+  }
 
-  // Alternatives : les 2 autres picks les plus probables (différents du bestKey)
-  const altKeys = Object.entries(pickMap)
-    .filter(([k]) => k !== bestKey && ['home','away','over25','btts'].includes(k))
-    .sort((a, b) => b[1].proba - a[1].proba)
+  // Meilleur pick : valeur attendue maximale (cote × probabilité)
+  const best       = candidates.sort((a, b) => (b.cote * b.prob) - (a.cote * a.prob))[0];
+  const coteMarche = best.cote;
+  const coteIA     = parseFloat((1 / best.prob).toFixed(2));
+  const value      = calcValue(coteIA, coteMarche);
+  const confidence = Math.min(92, Math.max(40, Math.round(best.prob * 100 * 0.85 + 8)));
+
+  const factors = [
+    `Probabilité implicite : ${Math.round(best.prob * 100)}%`,
+    `Value : cote marché ${coteMarche.toFixed(2)} vs fair value ${coteIA.toFixed(2)}`,
+  ];
+  if (best.k === 'home')   factors.push(`Favori à domicile — ${homeName}`);
+  if (best.k === 'away')   factors.push(`Favori visiteur — ${awayName}`);
+  if (best.k === 'over25') factors.push('Match ouvert, buts attendus selon les bookmakers');
+  if (injuries.length)     factors.push(`${injuries.length} blessure(s) signalée(s)`);
+
+  // Alternatives
+  const altPool = [];
+  if (best.k !== 'home'   && probHome   > 0.40 && avgHome   >= 1.80)
+    altPool.push({ pick_key: 'home',   pick: `Victoire ${homeName}`, bet_type: 'Résultat',       cote_marche: avgHome,   cote_ia: parseFloat((1/probHome).toFixed(2)),   prob: probHome   });
+  if (best.k !== 'away'   && probAway   > 0.40 && avgAway   >= 1.80)
+    altPool.push({ pick_key: 'away',   pick: `Victoire ${awayName}`, bet_type: 'Résultat',       cote_marche: avgAway,   cote_ia: parseFloat((1/probAway).toFixed(2)),   prob: probAway   });
+  if (best.k !== 'over25' && probOver25 && probOver25 > 0.40 && avgOver25 >= 1.80)
+    altPool.push({ pick_key: 'over25', pick: 'Plus de 2.5 buts',    bet_type: 'Nombre de buts', cote_marche: avgOver25, cote_ia: parseFloat((1/probOver25).toFixed(2)), prob: probOver25 });
+
+  const alternatives = altPool
+    .sort((a, b) => b.prob - a.prob)
     .slice(0, 2)
-    .map(([k, v]) => ({ pick_key: k, ...v, value: calcValue(v.cote_ia, v.cote_marche), confidence: calcConfidence(v.proba, calcValue(v.cote_ia, v.cote_marche)) }));
-  const alternatives = altKeys;
-
-  // ── Facteurs LIÉS AU PICK CHOISI ──────────────────────
-  const factors = [];
-  if (bestKey === 'home') {
-    if (homeForm > 0.55)  factors.push(`${homeName} — ${Math.round(homeForm*100)}% de victoires récentes`);
-    if (isRealStats && hs.position <= 5) factors.push(`${homeName} — ${hs.position}e au classement`);
-    factors.push(`Avantage du terrain (+${Math.round(homeAdvantageBonus('football')*100)}% domicile)`);
-    if (awayInjured >= 1) factors.push(`${awayInjured} absent(s) côté ${awayName}`);
-    if (homeGoalsFor > 1.5) factors.push(`${homeName} — ${homeGoalsFor.toFixed(1)} buts marqués/match`);
-  } else if (bestKey === 'away') {
-    if (awayForm > 0.55)  factors.push(`${awayName} — ${Math.round(awayForm*100)}% de victoires récentes`);
-    if (isRealStats && as_.position <= 5) factors.push(`${awayName} — ${as_.position}e au classement`);
-    if (awayGoalsFor > 1.5) factors.push(`${awayName} — ${awayGoalsFor.toFixed(1)} buts/match en déplacement`);
-    if (homeForm < 0.45)  factors.push(`${homeName} en méforme (${Math.round(homeForm*100)}%)`);
-  } else if (bestKey === 'over25') {
-    factors.push(`Total attendu : ${totalXg.toFixed(1)} buts (modèle Poisson)`);
-    factors.push(`${Math.round(pOver25*100)}% de probabilité de +2.5 buts`);
-    if (homeGoalsFor > 1.3) factors.push(`${homeName} — ${homeGoalsFor.toFixed(1)} buts/match`);
-    if (awayGoalsFor > 1.1) factors.push(`${awayName} — ${awayGoalsFor.toFixed(1)} buts/match`);
-  } else if (bestKey === 'btts') {
-    factors.push(`${Math.round(pBTTS*100)}% de chances que les 2 équipes marquent`);
-    factors.push(`${homeName} : ${homeXg.toFixed(1)} buts attendus`);
-    factors.push(`${awayName} : ${awayXg.toFixed(1)} buts attendus`);
-    if (homeGoalsAga > 1.1) factors.push(`Défense domicile perméable (${homeGoalsAga.toFixed(1)} enc./m)`);
-  }
-  if (!factors.length) factors.push(`${homeName} favori selon le modèle`, 'Analyse des cotes favorable');
+    .map(a => ({ ...a, value: calcValue(a.cote_ia, a.cote_marche), confidence: Math.min(92, Math.max(40, Math.round(a.prob * 100 * 0.85 + 8))) }));
 
   return {
-    match:          `${homeName} vs ${awayName}`,
-    bet_type:       best.bet_type,
-    pick:           best.pick,
-    pick_key:       best.pick_key,
-    cote_ia:        best.cote_ia,
-    cote_marche:    best.cote_marche,
-    confidence:     best.confidence,
-    value:          best.value,
-    odds_are_real:  hasRealOdds,
-    probabilities:  { home: +pHome.toFixed(3), draw: +pDraw.toFixed(3), away: +pAway.toFixed(3), over25: +pOver25.toFixed(3), btts: +pBTTS.toFixed(3) },
-    factors:        factors.slice(0, 4),
-    bookmakers:     hasRealOdds ? enrichOdds(odds, bestKey) : {},
+    match:         `${homeName} vs ${awayName}`,
+    pick:          best.label,
+    pick_key:      best.k,
+    bet_type:      best.type,
+    cote_ia:       coteIA,
+    cote_marche:   coteMarche,
+    confidence,
+    value,
+    odds_are_real: true,
+    probabilities: { home: +probHome.toFixed(3), draw: +probDraw.toFixed(3), away: +probAway.toFixed(3) },
+    factors:       factors.slice(0, 4),
+    bookmakers:    enrichOdds(odds, best.k),
     injuries,
-    team_stats:     stats,
+    team_stats:    data.stats || {},
     alternatives,
   };
 }

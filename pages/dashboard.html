@@ -130,23 +130,18 @@
         <h2>Nouvelle analyse IA</h2>
         <div class="form-row">
           <div class="form-group">
-            <label class="form-label">Sport</label>
-            <select class="form-select" id="sportSelect" onchange="updateLeagues()">
-              <option value="football">⚽ Football</option>
-              <option value="tennis">🎾 Tennis</option>
-              <option value="basketball">🏀 Basketball</option>
-              <option value="mma">🥊 MMA</option>
-              <option value="rugby">🏉 Rugby</option>
-              <option value="boxe">🥊 Boxe</option>
-            </select>
-          </div>
-          <div class="form-group">
             <label class="form-label">Ligue / Compétition</label>
             <select class="form-select" id="leagueSelect">
               <option value="Ligue 1">🇫🇷 Ligue 1</option>
+              <option value="Ligue 2">🇫🇷 Ligue 2</option>
               <option value="Premier League">🏴󠁧󠁢󠁥󠁮󠁧󠁿 Premier League</option>
+              <option value="Championship">🏴󠁧󠁢󠁥󠁮󠁧󠁿 Championship</option>
               <option value="La Liga">🇪🇸 La Liga</option>
+              <option value="La Liga 2">🇪🇸 La Liga 2</option>
               <option value="Bundesliga">🇩🇪 Bundesliga</option>
+              <option value="2. Bundesliga">🇩🇪 2. Bundesliga</option>
+              <option value="Serie A">🇮🇹 Serie A</option>
+              <option value="Serie B">🇮🇹 Serie B</option>
               <option value="Champions League">🏆 Champions League</option>
             </select>
           </div>
@@ -425,7 +420,7 @@
 
     // ─── Génération pronostic ──────────────────────────
     async function handleGenerate() {
-      const sport  = document.getElementById('sportSelect').value;
+      const sport  = 'football';
       const league = document.getElementById('leagueSelect').value;
       const date   = document.getElementById('dateInput').value;
 

@@ -216,22 +216,15 @@ function calcAvgCote(bookmakers, pick = 'home') {
 // ===================================================
 
 async function callAPI(endpoint, options = {}) {
-  try {
-    const session = await window.DB?.getSession();
-    const headers = {
-      'Content-Type': 'application/json',
-      ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
-    };
-    const res = await fetch(`${API_BASE}${endpoint}`, { ...options, headers });
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({ message: 'Erreur serveur' }));
-      throw new Error(err.message || `HTTP ${res.status}`);
-    }
-    return res.json();
-  } catch (err) {
-    console.warn('API call failed, using demo data:', err.message);
-    return null; // Le caller utilisera les données démo
-  }
+  const session = await window.DB?.getSession();
+  const headers = {
+    'Content-Type': 'application/json',
+    ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
+  };
+  const res = await fetch(`${API_BASE}${endpoint}`, { ...options, headers });
+  const body = await res.json().catch(() => ({ message: `HTTP ${res.status}` }));
+  if (!res.ok) throw new Error(body.error || body.message || `HTTP ${res.status}`);
+  return body;
 }
 
 // Génère un pronostic (appel backend ou données démo)
@@ -241,10 +234,6 @@ async function generatePronostic({ sport, league, date, info = '' }) {
     body: JSON.stringify({ sport, league, date, info }),
   });
 
-  // Backend inaccessible → erreur claire (pas de faux résultats)
-  if (!result) {
-    throw new Error('Le serveur est temporairement indisponible. Réessayez dans quelques instants.');
-  }
   // Pas de match → lancer une erreur claire avec les alternatives
   if (result.no_match) {
     const alts = (result.available_leagues || []).join(', ');
@@ -267,11 +256,6 @@ async function reanalyze(pronoId, info) {
     body: JSON.stringify({ pronoId, info }),
   });
 
-  if (!result) {
-    await new Promise(r => setTimeout(r, 1200));
-    // Simule une légère variation de confiance
-    return { confidence: Math.min(95, Math.max(40, Math.round(Math.random() * 20 + 55))) };
-  }
   return result;
 }
 
