@@ -49,15 +49,18 @@ async function runAlgo() {
   const dateFrom = now.toISOString().split('T')[0];
   const dateTo   = future.toISOString().split('T')[0];
 
+  const KEY_F = process.env.FOOTBALL_DATA_KEY || '0bebba720a484535a0105713e0fc7d66';
+  const KEY_O = '402dfe4ed1b2e82526e91725d6f02438';
+
   const [resF, resO] = await Promise.all([
     axios.get(`https://api.football-data.org/v4/matches?dateFrom=${dateFrom}&dateTo=${dateTo}`, {
-      headers: { 'X-Auth-Token': process.env.FOOTBALL_DATA_KEY },
+      headers: { 'X-Auth-Token': KEY_F },
     }),
-    axios.get(`https://api.the-odds-api.com/v4/sports/soccer/odds/?apiKey=402dfe4ed1b2e82526e91725d6f02438&regions=eu&markets=h2h,totals`),
+    axios.get(`https://api.the-odds-api.com/v4/sports/soccer/odds/?apiKey=${KEY_O}&regions=eu&markets=h2h,totals`),
   ]);
 
   const matches  = resF.data.matches || [];
-  const oddsData = resO.data;
+  const oddsData = Array.isArray(resO.data) ? resO.data : [];
   const picks    = [];
 
   matches.forEach(m => {
