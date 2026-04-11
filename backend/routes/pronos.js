@@ -59,7 +59,7 @@ function cleanName(n) {
 async function runAlgo() {
   const now    = new Date();
   const future = new Date();
-  future.setDate(now.getDate() + 7);
+  future.setDate(now.getDate() + 3);
   const dateFrom = now.toISOString().split('T')[0];
   const dateTo   = future.toISOString().split('T')[0];
 
