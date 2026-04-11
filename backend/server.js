@@ -17,6 +17,9 @@ const paymentsRoutes = require('./routes/payments');
 const app  = express();
 const PORT = process.env.PORT || 3001;
 
+// Railway passe par un proxy — nécessaire pour express-rate-limit
+app.set('trust proxy', 1);
+
 // ─── Sécurité ────────────────────────────────────────
 app.use(helmet());
 
