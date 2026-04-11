@@ -65,19 +65,27 @@ async function _runAlgoBrowser() {
                 }
 
                 if (totals) {
-                    const lines = [...new Set(totals.filter(x => x.point).map(x => x.point))];
+                    // Lignes avec point explicite (ex: 1.5, 2.5, 3.5) + fallback sans point
+                    const hasPoint = totals.some(x => x.point != null);
+                    const lines = hasPoint
+                        ? [...new Set(totals.filter(x => x.point != null).map(x => x.point))]
+                        : [null];
                     lines.forEach(pt => {
-                        const ov = totals.find(x => x.name.toLowerCase() === 'over'  && x.point === pt);
-                        const un = totals.find(x => x.name.toLowerCase() === 'under' && x.point === pt);
-                        if (ov && un) {
-                            const mg = (1/ov.price) + (1/un.price);
-                            const pOv = ((1/ov.price) / mg) * 100;
-                            const pUn = ((1/un.price) / mg) * 100;
-                            if (ov.price >= 1.80 && pOv > 50)
-                                allValidPicks.push({ match: `${m.homeTeam.name} vs ${m.awayTeam.name}`, league: leagueName, date: m.utcDate, pick: `+${pt} Buts`, cote: ov.price, prob: pOv, type: `+${pt} BUTS` });
-                            if (un.price >= 1.80 && pUn > 50)
-                                allValidPicks.push({ match: `${m.homeTeam.name} vs ${m.awayTeam.name}`, league: leagueName, date: m.utcDate, pick: `-${pt} Buts`, cote: un.price, prob: pUn, type: `-${pt} BUTS` });
-                        }
+                        const ov = pt != null
+                            ? totals.find(x => x.name.toLowerCase() === 'over'  && x.point === pt)
+                            : totals.find(x => x.name.toLowerCase() === 'over');
+                        const un = pt != null
+                            ? totals.find(x => x.name.toLowerCase() === 'under' && x.point === pt)
+                            : totals.find(x => x.name.toLowerCase() === 'under');
+                        if (!ov || !un) return;
+                        const mg = (1/ov.price) + (1/un.price);
+                        const pOv = ((1/ov.price) / mg) * 100;
+                        const pUn = ((1/un.price) / mg) * 100;
+                        const label = pt != null ? `${pt}` : '2.5';
+                        if (ov.price >= 1.80 && pOv > 50)
+                            allValidPicks.push({ match: `${m.homeTeam.name} vs ${m.awayTeam.name}`, league: leagueName, date: m.utcDate, pick: `+${label} Buts`, cote: ov.price, prob: pOv, type: `+${label} BUTS` });
+                        if (un.price >= 1.80 && pUn > 50)
+                            allValidPicks.push({ match: `${m.homeTeam.name} vs ${m.awayTeam.name}`, league: leagueName, date: m.utcDate, pick: `-${label} Buts`, cote: un.price, prob: pUn, type: `-${label} BUTS` });
                     });
                 }
             }
@@ -88,8 +96,7 @@ async function _runAlgoBrowser() {
         return allValidPicks.sort((a, b) => (b.cote * b.prob) - (a.cote * a.prob))[0];
 
     } catch (e) {
-        console.error("Erreur Algo:", e);
-        return null;
+        throw new Error(e.message || 'Erreur lors de l\'analyse');
     }
 }
 
