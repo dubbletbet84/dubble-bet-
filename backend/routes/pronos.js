@@ -120,12 +120,39 @@ async function runAlgo() {
     const matchStr = `${m.homeTeam.name} vs ${m.awayTeam.name}`;
     const date     = m.utcDate.split('T')[0];
     const league   = LEAGUE_MAP[leagueCode];
+    const extra    = { comp_code: leagueCode, homeTeam: m.homeTeam.name, awayTeam: m.awayTeam.name };
+
+    // Construit l'objet bookmakers { "Winamax (FR)": { home, draw, away, over25, ... } }
+    const bookmakersObj = {};
+    for (const bk of matchOdds.bookmakers) {
+      const h = bk.markets.find(mk => mk.key === 'h2h');
+      if (!h) continue;
+      const homeO = h.outcomes.find(x => x.name === matchOdds.home_team);
+      const awayO = h.outcomes.find(x => x.name === matchOdds.away_team);
+      const drawO = h.outcomes.find(x => x.name.toLowerCase().includes('draw'));
+      const entry = {
+        home: homeO?.price,
+        draw: drawO?.price,
+        away: awayO?.price,
+      };
+      // Ajoute les marchés buts
+      const tot = bk.markets.find(mk => mk.key === 'totals');
+      if (tot) {
+        for (const o of tot.outcomes) {
+          const key = o.name.toLowerCase() === 'over'
+            ? `over${String(o.point || 25).replace('.', '')}`
+            : `under${String(o.point || 25).replace('.', '')}`;
+          entry[key] = o.price;
+        }
+      }
+      bookmakersObj[bk.title] = entry;
+    }
 
     if (avgHome >= 1.80 && probHome > 50) {
-      picks.push({ match: matchStr, league, date, pick: `Victoire ${m.homeTeam.name}`, cote_marche: avgHome, prob: probHome });
+      picks.push({ match: matchStr, league, date, pick: `Victoire ${m.homeTeam.name}`, pick_key: 'home', cote_marche: avgHome, prob: probHome, bookmakers: bookmakersObj, ...extra });
     }
     if (avgAway >= 1.80 && probAway > 50) {
-      picks.push({ match: matchStr, league, date, pick: `Victoire ${m.awayTeam.name}`, cote_marche: avgAway, prob: probAway });
+      picks.push({ match: matchStr, league, date, pick: `Victoire ${m.awayTeam.name}`, pick_key: 'away', cote_marche: avgAway, prob: probAway, bookmakers: bookmakersObj, ...extra });
     }
 
     // Marchés buts : toutes les lignes disponibles (1.5, 2.5, 3.5...)
@@ -143,10 +170,12 @@ async function runAlgo() {
       const pOv  = ((1/avgOv) / mg) * 100;
       const pUn  = ((1/avgUn) / mg) * 100;
       const label = pt != null ? `${pt}` : '2.5';
+      const keyOv = `over${String(pt || 25).replace('.', '')}`;
+      const keyUn = `under${String(pt || 25).replace('.', '')}`;
       if (avgOv >= 1.80 && pOv > 50)
-        picks.push({ match: matchStr, league, date, pick: `+${label} buts`, cote_marche: avgOv, prob: pOv });
+        picks.push({ match: matchStr, league, date, pick: `+${label} buts`, pick_key: keyOv, cote_marche: avgOv, prob: pOv, bookmakers: bookmakersObj, ...extra });
       if (avgUn >= 1.80 && pUn > 50)
-        picks.push({ match: matchStr, league, date, pick: `-${label} buts`, cote_marche: avgUn, prob: pUn });
+        picks.push({ match: matchStr, league, date, pick: `-${label} buts`, pick_key: keyUn, cote_marche: avgUn, prob: pUn, bookmakers: bookmakersObj, ...extra });
     });
 
   });
@@ -158,11 +187,75 @@ async function runAlgo() {
   best.confidence = Math.min(92, Math.max(40, Math.round(best.prob * 0.85 + 8)));
   best.value      = parseFloat(((best.cote_marche * best.prob / 100 - 1) * 100).toFixed(1));
   best.cote_ia    = parseFloat((100 / best.prob).toFixed(2));
-  best.factors    = [`Probabilité implicite : ${Math.round(best.prob)}%`, `Cote marché : ${best.cote_marche.toFixed(2)}`];
   best.odds_are_real = true;
-  best.bookmakers    = {};
-  best.injuries      = [];
-  best.team_stats    = {};
+
+  // Facteurs de base (enrichis plus bas si standings disponibles)
+  best.factors = [
+    `Probabilité implicite bookmakers : ${Math.round(best.prob)}%`,
+    `Cote moyenne sur ${Object.keys(best.bookmakers || {}).length || 1} site(s) : ${best.cote_marche.toFixed(2)}`,
+    `Value edge : +${best.value.toFixed(1)}%`,
+  ];
+
+  // Stats équipes depuis le classement football-data.org
+  const KEY_F = process.env.FOOTBALL_DATA_KEY || '0bebba720a484535a0105713e0fc7d66';
+  try {
+    const standRes = await axios.get(
+      `https://api.football-data.org/v4/competitions/${best.comp_code}/standings`,
+      { headers: { 'X-Auth-Token': KEY_F }, timeout: 6000 }
+    );
+    const table = standRes.data.standings?.find(s => s.type === 'TOTAL')?.table || [];
+
+    const findRow = (name) => table.find(r =>
+      cleanName(r.team.name).includes(cleanName(name)) ||
+      cleanName(name).includes(cleanName(r.team.name))
+    );
+
+    const hRow = findRow(best.homeTeam);
+    const aRow = findRow(best.awayTeam);
+
+    if (hRow && aRow) {
+      const avg = (v, g) => g ? (v / g).toFixed(1) : '—';
+      best.team_stats = {
+        home: {
+          name:          best.homeTeam,
+          position:      hRow.position,
+          form:          hRow.form || '—',
+          goals:         avg(hRow.goalsFor, hRow.playedGames),
+          goals_against: avg(hRow.goalsAgainst, hRow.playedGames),
+          won:           hRow.won,
+          draw:          hRow.draw,
+          lost:          hRow.lost,
+        },
+        away: {
+          name:          best.awayTeam,
+          position:      aRow.position,
+          form:          aRow.form || '—',
+          goals:         avg(aRow.goalsFor, aRow.playedGames),
+          goals_against: avg(aRow.goalsAgainst, aRow.playedGames),
+          won:           aRow.won,
+          draw:          aRow.draw,
+          lost:          aRow.lost,
+        },
+      };
+
+      // Facteurs enrichis
+      best.factors = [
+        `Probabilité implicite bookmakers : ${Math.round(best.prob)}%`,
+        `Cote moyenne (${Object.keys(best.bookmakers || {}).length} sites) : ${best.cote_marche.toFixed(2)}`,
+        `Value edge : +${best.value.toFixed(1)}%`,
+        `${best.homeTeam} — ${hRow.position}e, forme : ${hRow.form || '—'}`,
+        `${best.awayTeam} — ${aRow.position}e, forme : ${aRow.form || '—'}`,
+        `${best.homeTeam} : ${avg(hRow.goalsFor, hRow.playedGames)} buts/match marqués`,
+        `${best.awayTeam} : ${avg(aRow.goalsAgainst, aRow.playedGames)} buts/match encaissés`,
+      ];
+      if (hRow.position < aRow.position) {
+        best.factors.push(`${best.homeTeam} mieux classé de ${aRow.position - hRow.position} places`);
+      }
+    }
+  } catch (_) {
+    // standings non disponibles → facteurs de base conservés
+  }
+
   return best;
 }
 
@@ -230,7 +323,13 @@ router.post('/generate', requireAuth, checkQuota, async (req, res) => {
       .single();
 
     if (error) throw error;
-    res.json(saved);
+    // Renvoyer les données Supabase + bookmakers réels (non stockés en base)
+    res.json({
+      ...saved,
+      bookmakers:    pick.bookmakers || {},
+      pick_key:      pick.pick_key,
+      odds_are_real: true,
+    });
   } catch (err) {
     console.error('[pronos/generate]', err.message);
     res.status(500).json({ error: err.message });
