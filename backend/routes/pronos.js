@@ -59,7 +59,7 @@ function cleanName(n) {
 async function runAlgo() {
   const now    = new Date();
   const future = new Date();
-  future.setDate(now.getDate() + 3);
+  future.setDate(now.getDate() + 7);
   const dateFrom = now.toISOString().split('T')[0];
   const dateTo   = future.toISOString().split('T')[0];
 
@@ -298,7 +298,7 @@ router.post('/generate', requireAuth, checkQuota, async (req, res) => {
   try {
     const pick = await runAlgo();
     if (!pick) {
-      return res.status(404).json({ error: 'Aucun prono sécurisé trouvé pour les 3 prochains jours.' });
+      return res.status(422).json({ error: 'Aucun prono sécurisé trouvé pour les 7 prochains jours.' });
     }
 
     const pronoData = {
