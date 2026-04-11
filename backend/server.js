@@ -24,6 +24,7 @@ app.set('trust proxy', 1);
 app.use(helmet());
 
 app.use(cors({ origin: true, credentials: true }));
+app.options('*', cors()); // preflight CORS pour toutes les routes
 
 // Rate limiting global (100 req/15min par IP)
 app.use(rateLimit({
