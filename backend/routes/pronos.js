@@ -93,40 +93,62 @@ async function runAlgo() {
     );
     if (!matchOdds || !matchOdds.bookmakers.length) return;
 
-    const markets = matchOdds.bookmakers[0].markets;
-    const h2h    = markets.find(mk => mk.key === 'h2h')?.outcomes;
-    const totals = markets.find(mk => mk.key === 'totals')?.outcomes;
-    if (!h2h) return;
+    // Calcule la moyenne des cotes sur tous les bookmakers disponibles
+    function avgOdds(outcomeName, marketKey, point) {
+      const prices = [];
+      for (const bk of matchOdds.bookmakers) {
+        const mkt = bk.markets.find(mk => mk.key === marketKey);
+        if (!mkt) continue;
+        const o = point != null
+          ? mkt.outcomes.find(x => x.name.toLowerCase() === outcomeName && x.point === point)
+          : mkt.outcomes.find(x => x.name.toLowerCase() === outcomeName || x.name === outcomeName);
+        if (o?.price) prices.push(o.price);
+      }
+      if (!prices.length) return null;
+      return parseFloat((prices.reduce((a, b) => a + b, 0) / prices.length).toFixed(2));
+    }
 
-    const home = h2h.find(x => x.name === matchOdds.home_team);
-    const away = h2h.find(x => x.name === matchOdds.away_team);
-    const draw = h2h.find(x => x.name.toLowerCase().includes('draw'));
-    if (!home || !away || !draw) return;
+    const avgHome = avgOdds(matchOdds.home_team, 'h2h');
+    const avgAway = avgOdds(matchOdds.away_team, 'h2h');
+    const avgDraw = avgOdds('draw', 'h2h');
+    if (!avgHome || !avgAway || !avgDraw) return;
 
-    const margin   = (1/home.price) + (1/away.price) + (1/draw.price);
-    const probHome = ((1/home.price) / margin) * 100;
-    const probAway = ((1/away.price) / margin) * 100;
+    const margin   = (1/avgHome) + (1/avgAway) + (1/avgDraw);
+    const probHome = ((1/avgHome) / margin) * 100;
+    const probAway = ((1/avgAway) / margin) * 100;
 
     const matchStr = `${m.homeTeam.name} vs ${m.awayTeam.name}`;
     const date     = m.utcDate.split('T')[0];
     const league   = LEAGUE_MAP[leagueCode];
 
-    if (home.price >= 1.80 && probHome > 50) {
-      picks.push({ match: matchStr, league, date, pick: `Victoire ${m.homeTeam.name}`, pick_key: 'home', bet_type: 'Résultat', cote_marche: home.price, prob: probHome });
+    if (avgHome >= 1.80 && probHome > 50) {
+      picks.push({ match: matchStr, league, date, pick: `Victoire ${m.homeTeam.name}`, cote_marche: avgHome, prob: probHome });
     }
-    if (away.price >= 1.80 && probAway > 50) {
-      picks.push({ match: matchStr, league, date, pick: `Victoire ${m.awayTeam.name}`, pick_key: 'away', bet_type: 'Résultat', cote_marche: away.price, prob: probAway });
+    if (avgAway >= 1.80 && probAway > 50) {
+      picks.push({ match: matchStr, league, date, pick: `Victoire ${m.awayTeam.name}`, cote_marche: avgAway, prob: probAway });
     }
 
-    const over25 = totals?.find(x => x.name.toLowerCase() === 'over');
-    if (over25 && over25.price >= 1.80) {
-      const under25   = totals?.find(x => x.name.toLowerCase() === 'under');
-      const overMargin = (1/over25.price) + (1/(under25?.price || 1.90));
-      const probOver  = ((1/over25.price) / overMargin) * 100;
-      if (probOver > 50) {
-        picks.push({ match: matchStr, league, date, pick: 'Plus de 2.5 buts', pick_key: 'over25', bet_type: 'Nombre de buts', cote_marche: over25.price, prob: probOver });
-      }
-    }
+    // Marchés buts : toutes les lignes disponibles (1.5, 2.5, 3.5...)
+    const allTotalsOutcomes = matchOdds.bookmakers[0]?.markets.find(mk => mk.key === 'totals')?.outcomes || [];
+    const hasPoint = allTotalsOutcomes.some(x => x.point != null);
+    const lines = hasPoint
+      ? [...new Set(allTotalsOutcomes.filter(x => x.point != null).map(x => x.point))]
+      : [null];
+
+    lines.forEach(pt => {
+      const avgOv = avgOdds('over', 'totals', pt);
+      const avgUn = avgOdds('under', 'totals', pt);
+      if (!avgOv || !avgUn) return;
+      const mg   = (1/avgOv) + (1/avgUn);
+      const pOv  = ((1/avgOv) / mg) * 100;
+      const pUn  = ((1/avgUn) / mg) * 100;
+      const label = pt != null ? `${pt}` : '2.5';
+      if (avgOv >= 1.80 && pOv > 50)
+        picks.push({ match: matchStr, league, date, pick: `+${label} buts`, cote_marche: avgOv, prob: pOv });
+      if (avgUn >= 1.80 && pUn > 50)
+        picks.push({ match: matchStr, league, date, pick: `-${label} buts`, cote_marche: avgUn, prob: pUn });
+    });
+
   });
 
   if (!picks.length) return null;
