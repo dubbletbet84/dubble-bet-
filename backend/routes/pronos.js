@@ -199,7 +199,6 @@ async function runAlgo() {
   ];
 
   // Stats équipes depuis le classement football-data.org
-  const KEY_F = process.env.FOOTBALL_DATA_KEY || '0bebba720a484535a0105713e0fc7d66';
   try {
     const standRes = await axios.get(
       `https://api.football-data.org/v4/competitions/${best.comp_code}/standings`,
