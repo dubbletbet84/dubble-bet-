@@ -37,6 +37,20 @@ const LEAGUE_MAP = {
   'SA': 'Serie A', 'SB': 'Serie B', 'FL1': 'Ligue 1', 'FL2': 'Ligue 2',
 };
 
+// Correspondance code football-data → sport key The Odds API
+const ODDS_SPORT_KEYS = {
+  'PL':  'soccer_epl',
+  'ELC': 'soccer_efl_champ',
+  'PD':  'soccer_spain_la_liga',
+  'SD':  'soccer_spain_segunda_division',
+  'BL1': 'soccer_germany_bundesliga',
+  'BL2': 'soccer_germany_bundesliga2',
+  'SA':  'soccer_italy_serie_a',
+  'SB':  'soccer_italy_serie_b',
+  'FL1': 'soccer_france_ligue_one',
+  'FL2': 'soccer_france_ligue_two',
+};
+
 function cleanName(n) {
   return n.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
     .replace(/fc|cf|as|real|stade|united|city|town|sporting|bayer|atletico|de /g, '').trim();
@@ -50,17 +64,23 @@ async function runAlgo() {
   const dateTo   = future.toISOString().split('T')[0];
 
   const KEY_F = process.env.FOOTBALL_DATA_KEY || '0bebba720a484535a0105713e0fc7d66';
-  const KEY_O = '402dfe4ed1b2e82526e91725d6f02438';
+  const KEY_O = process.env.ODDS_API_KEY || '402dfe4ed1b2e82526e91725d6f02438';
 
-  const [resF, resO] = await Promise.all([
+  // Appels parallèles : football-data + chaque ligue sur The Odds API
+  const sportKeys = Object.values(ODDS_SPORT_KEYS);
+  const [resF, ...oddsResults] = await Promise.all([
     axios.get(`https://api.football-data.org/v4/matches?dateFrom=${dateFrom}&dateTo=${dateTo}`, {
       headers: { 'X-Auth-Token': KEY_F },
     }),
-    axios.get(`https://api.the-odds-api.com/v4/sports/soccer/odds/?apiKey=${KEY_O}&regions=eu&markets=h2h,totals`),
+    ...sportKeys.map(key =>
+      axios.get(`https://api.the-odds-api.com/v4/sports/${key}/odds/?apiKey=${KEY_O}&regions=eu&markets=h2h,totals`)
+        .then(r => Array.isArray(r.data) ? r.data : [])
+        .catch(() => [])
+    ),
   ]);
 
   const matches  = resF.data.matches || [];
-  const oddsData = Array.isArray(resO.data) ? resO.data : [];
+  const oddsData = oddsResults.flat();
   const picks    = [];
 
   matches.forEach(m => {
