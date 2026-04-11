@@ -180,10 +180,12 @@ async function runAlgo() {
 
   });
 
-  if (!picks.length) return null;
+  // Filtre : value positive uniquement (cote × prob > 1)
+  const positivePicks = picks.filter(p => p.cote_marche * (p.prob / 100) > 1);
+  if (!positivePicks.length) return null;
 
   // Meilleur pick : valeur attendue max (cote × prob)
-  const best = picks.sort((a, b) => (b.cote_marche * b.prob) - (a.cote_marche * a.prob))[0];
+  const best = positivePicks.sort((a, b) => (b.cote_marche * b.prob) - (a.cote_marche * a.prob))[0];
   best.confidence = Math.min(92, Math.max(40, Math.round(best.prob * 0.85 + 8)));
   best.value      = parseFloat(((best.cote_marche * best.prob / 100 - 1) * 100).toFixed(1));
   best.cote_ia    = parseFloat((100 / best.prob).toFixed(2));
