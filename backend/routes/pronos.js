@@ -156,6 +156,45 @@ async function checkQuota(req, res, next) {
   next();
 }
 
+// ─── POST /api/pronos/generate ───────────────────────
+// Génère un prono côté serveur (pas de CORS) + sauvegarde Supabase
+router.post('/generate', requireAuth, checkQuota, async (req, res) => {
+  try {
+    const pick = await runAlgo();
+    if (!pick) {
+      return res.status(404).json({ error: 'Aucun prono sécurisé trouvé pour les 3 prochains jours.' });
+    }
+
+    const pronoData = {
+      user_id:         req.user.id,
+      sport:           'football',
+      league:          pick.league,
+      date:            pick.date,
+      match:           pick.match,
+      pick:            pick.pick,
+      cote_ia:         pick.cote_ia,
+      cote_marche:     pick.cote_marche,
+      confidence:      pick.confidence,
+      value:           pick.value,
+      result:          'pending',
+      reanalyze_count: 0,
+      created_at:      new Date().toISOString(),
+    };
+
+    const { data: saved, error } = await supabase
+      .from('pronostics')
+      .insert([pronoData])
+      .select()
+      .single();
+
+    if (error) throw error;
+    res.json(saved);
+  } catch (err) {
+    console.error('[pronos/generate]', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ─── POST /api/pronos/save ────────────────────────────
 // L'algo tourne côté navigateur, le backend sauvegarde uniquement
 router.post('/save', requireAuth, checkQuota, async (req, res) => {
