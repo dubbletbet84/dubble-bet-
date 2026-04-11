@@ -20,19 +20,7 @@ const PORT = process.env.PORT || 3001;
 // ─── Sécurité ────────────────────────────────────────
 app.use(helmet());
 
-// Origines autorisées
-const allowedOrigins = [
-  'http://localhost:5500',
-  'http://127.0.0.1:5500',
-  'https://dubbletbet84.github.io',
-];
-app.use(cors({
-  origin: (origin, cb) => {
-    if (!origin || allowedOrigins.includes(origin)) return cb(null, true);
-    cb(new Error('CORS non autorisé pour : ' + origin));
-  },
-  credentials: true,
-}));
+app.use(cors({ origin: true, credentials: true }));
 
 // Rate limiting global (100 req/15min par IP)
 app.use(rateLimit({
