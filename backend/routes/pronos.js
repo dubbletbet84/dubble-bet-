@@ -613,55 +613,58 @@ router.get('/debug-odds', async (req, res) => {
   }
 });
 
-// ─── GET /api/pronos/debug-full?league=Ligue+1&date=2026-04-10 ──
-router.get('/debug-full', async (req, res) => {
-  const { league = 'Ligue 1', date = new Date().toISOString().slice(0, 10) } = req.query;
-  const trace = [];
+// ─── GET /api/pronos/debug-algo ──────────────────────
+// Trace complète de ce que runAlgo() voit : matchs, filtres, picks
+router.get('/debug-algo', async (req, res) => {
+  const KEY_O = process.env.ODDS_API_KEY || '402dfe4ed1b2e82526e91725d6f02438';
+  const now    = new Date();
+  const future = new Date(); future.setDate(now.getDate() + 3);
 
-  try {
-    // 1. Fixtures
-    const fixtures = await apiSports.getFixtures({ sport: 'football', league, date });
-    trace.push({
-      step: 'getFixtures',
-      count: fixtures.length,
-      isDemo: fixtures[0]?.isDemo,
-      matches: fixtures.map(f => `${f.homeTeam?.name} vs ${f.awayTeam?.name}`),
-    });
+  const FR_KEYS = ['winamax_fr','betclic','unibet_fr','pmu','france_pari','parions_sport','vbet_fr','bwin_fr','pokerstars_fr'];
+  const sportKeys = Object.keys(SPORT_KEY_TO_LEAGUE);
+  const trace = { now: now.toISOString(), future: future.toISOString(), leagues: [] };
 
-    if (!fixtures.length || fixtures[0]?.isDemo) {
-      return res.json({ ok: false, trace, reason: fixtures[0]?.isDemo ? 'fixtures isDemo=true' : 'aucun fixture' });
+  await Promise.all(sportKeys.map(async key => {
+    try {
+      const r = await axios.get(`https://api.the-odds-api.com/v4/sports/${key}/odds/`, {
+        params: { apiKey: KEY_O, regions: 'eu', markets: 'h2h' }, timeout: 10000
+      });
+      const all     = Array.isArray(r.data) ? r.data : [];
+      const inRange = all.filter(o => { const d = new Date(o.commence_time); return d >= now && d <= future; });
+      const picks   = [];
+
+      inRange.forEach(o => {
+        const frBks  = o.bookmakers.filter(b => FR_KEYS.includes(b.key));
+        const pool   = frBks.length >= 2 ? frBks : o.bookmakers;
+        const getAvg = name => {
+          const prices = pool.map(b => b.markets[0]?.outcomes.find(x => x.name === name || x.name.toLowerCase() === name)?.price).filter(Boolean);
+          return prices.length ? +(prices.reduce((a,b)=>a+b,0)/prices.length).toFixed(2) : null;
+        };
+        const h = getAvg(o.home_team), a = getAvg(o.away_team), d = getAvg('draw');
+        if (!h||!a||!d) return;
+        const mg = 1/h+1/a+1/d;
+        const ph = (1/h/mg*100), pa = (1/a/mg*100);
+        if (h>=1.80&&ph>50) picks.push({ match:`${o.home_team} vs ${o.away_team}`, pick:'home', cote:h, prob:+ph.toFixed(1), bkCount:pool.length, frBkCount:frBks.length });
+        if (a>=1.80&&pa>50) picks.push({ match:`${o.home_team} vs ${o.away_team}`, pick:'away', cote:a, prob:+pa.toFixed(1), bkCount:pool.length, frBkCount:frBks.length });
+      });
+
+      trace.leagues.push({
+        sport_key: key,
+        league: SPORT_KEY_TO_LEAGUE[key].league,
+        total_events: all.length,
+        in_3days: inRange.length,
+        eligible_picks: picks.length,
+        picks,
+      });
+    } catch(err) {
+      trace.leagues.push({ sport_key: key, error: err.response?.data?.message || err.message });
     }
+  }));
 
-    // 2. Odds pour le 1er match
-    const fixture = fixtures[0];
-    const odds = await apiSports.getOdds(fixture);
-    const bookmakerCount = odds ? Object.keys(odds).length : 0;
-    const sample = odds ? Object.entries(odds).slice(0, 2).map(([bk, o]) => ({ bk, home: o.home, draw: o.draw, away: o.away })) : [];
-    trace.push({ step: 'getOdds', hasOdds: !!odds, bookmakers: bookmakerCount, sample });
-
-    if (!odds) {
-      return res.json({ ok: false, trace, reason: 'pas de cotes réelles (The Odds API)' });
-    }
-
-    // 3. Prediction
-    const stats    = await apiSports.getTeamStats(fixture);
-    const injuries = await apiSports.getInjuries(fixture);
-    const prediction = require('../services/prediction');
-    const pred = await prediction.predict({ ...fixture, stats, injuries, odds });
-    trace.push({
-      step: 'prediction',
-      pick: pred.pick,
-      cote_marche: pred.cote_marche,
-      cote_ia: pred.cote_ia,
-      confidence: pred.confidence,
-      value: pred.value,
-      eligibleForProno: pred.cote_marche >= 1.90,
-    });
-
-    res.json({ ok: pred.cote_marche >= 1.90, trace });
-  } catch (err) {
-    res.json({ ok: false, trace, error: err.message });
-  }
+  const totalPicks = trace.leagues.reduce((s, l) => s + (l.eligible_picks || 0), 0);
+  trace.total_eligible_picks = totalPicks;
+  trace.verdict = totalPicks > 0 ? '✅ Des picks existent — algo devrait fonctionner' : '❌ Aucun pick — vérifier filtres ou calendrier';
+  res.json(trace);
 });
 
 module.exports = router;
