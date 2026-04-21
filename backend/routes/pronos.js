@@ -50,6 +50,36 @@ function cleanName(n) {
     .replace(/\b(fc|cf|as|real|stade|united|city|town|sporting|bayer|atletico|de)\b/g, '').trim();
 }
 
+// ─── Cache mémoire des cotes (TTL 2h) ────────────────
+// Évite de brûler le quota Odds API à chaque génération
+let _oddsCache     = null;
+let _oddsCacheTime = 0;
+const CACHE_TTL    = 2 * 60 * 60 * 1000; // 2 heures en ms
+
+async function fetchAllOdds(KEY_O) {
+  const age = Date.now() - _oddsCacheTime;
+  if (_oddsCache && age < CACHE_TTL) {
+    console.log(`[odds] cache hit (${Math.round(age/60000)}min old)`);
+    return _oddsCache;
+  }
+  console.log('[odds] fetching from The Odds API...');
+  const sportKeys = Object.keys(SPORT_KEY_TO_LEAGUE);
+  const results = await Promise.all(
+    sportKeys.map(key =>
+      axios.get(
+        `https://api.the-odds-api.com/v4/sports/${key}/odds/`,
+        { params: { apiKey: KEY_O, regions: 'eu', markets: 'h2h,totals' }, timeout: 10000 }
+      )
+        .then(r => (Array.isArray(r.data) ? r.data : []).map(e => ({ ...e, _sport_key: key })))
+        .catch(err => { console.error(`[odds] ${key}:`, err.message); return []; })
+    )
+  );
+  _oddsCache     = results.flat();
+  _oddsCacheTime = Date.now();
+  console.log(`[odds] cached ${_oddsCache.length} events`);
+  return _oddsCache;
+}
+
 async function runAlgo() {
   const now    = new Date();
   const future = new Date();
@@ -58,21 +88,11 @@ async function runAlgo() {
   const KEY_F = process.env.FOOTBALL_DATA_KEY || '0bebba720a484535a0105713e0fc7d66';
   const KEY_O = process.env.ODDS_API_KEY || '402dfe4ed1b2e82526e91725d6f02438';
 
-  // Récupère les cotes pour chaque ligue en parallèle (The Odds API = source primaire)
-  const sportKeys = Object.keys(SPORT_KEY_TO_LEAGUE);
-  const oddsResults = await Promise.all(
-    sportKeys.map(key =>
-      axios.get(
-        `https://api.the-odds-api.com/v4/sports/${key}/odds/`,
-        { params: { apiKey: KEY_O, regions: 'eu', markets: 'h2h,totals' }, timeout: 10000 }
-      )
-        .then(r => (Array.isArray(r.data) ? r.data : []).map(e => ({ ...e, _sport_key: key })))
-        .catch(() => [])
-    )
-  );
+  // Récupère les cotes via le cache (max 1 appel API toutes les 2h par ligue)
+  const oddsData = await fetchAllOdds(KEY_O);
 
   // Filtrer sur les 3 prochains jours uniquement
-  const allEvents = oddsResults.flat().filter(o => {
+  const allEvents = oddsData.filter(o => {
     const d = new Date(o.commence_time);
     return d >= now && d <= future;
   });
@@ -616,55 +636,44 @@ router.get('/debug-odds', async (req, res) => {
 // ─── GET /api/pronos/debug-algo ──────────────────────
 // Trace complète de ce que runAlgo() voit : matchs, filtres, picks
 router.get('/debug-algo', async (req, res) => {
-  const KEY_O = process.env.ODDS_API_KEY || '402dfe4ed1b2e82526e91725d6f02438';
+  const KEY_O  = process.env.ODDS_API_KEY || '402dfe4ed1b2e82526e91725d6f02438';
   const now    = new Date();
   const future = new Date(); future.setDate(now.getDate() + 3);
-
   const FR_KEYS = ['winamax_fr','betclic','unibet_fr','pmu','france_pari','parions_sport','vbet_fr','bwin_fr','pokerstars_fr'];
-  const sportKeys = Object.keys(SPORT_KEY_TO_LEAGUE);
-  const trace = { now: now.toISOString(), future: future.toISOString(), leagues: [] };
 
-  await Promise.all(sportKeys.map(async key => {
-    try {
-      const r = await axios.get(`https://api.the-odds-api.com/v4/sports/${key}/odds/`, {
-        params: { apiKey: KEY_O, regions: 'eu', markets: 'h2h' }, timeout: 10000
-      });
-      const all     = Array.isArray(r.data) ? r.data : [];
-      const inRange = all.filter(o => { const d = new Date(o.commence_time); return d >= now && d <= future; });
-      const picks   = [];
+  // Utilise le cache — ne consomme pas de quota si déjà chargé
+  const allOdds  = await fetchAllOdds(KEY_O);
+  const inRange  = allOdds.filter(o => { const d = new Date(o.commence_time); return d >= now && d <= future; });
+  const cacheAge = Math.round((Date.now() - _oddsCacheTime) / 60000);
 
-      inRange.forEach(o => {
-        const frBks  = o.bookmakers.filter(b => FR_KEYS.includes(b.key));
-        const pool   = frBks.length >= 2 ? frBks : o.bookmakers;
-        const getAvg = name => {
-          const prices = pool.map(b => b.markets[0]?.outcomes.find(x => x.name === name || x.name.toLowerCase() === name)?.price).filter(Boolean);
-          return prices.length ? +(prices.reduce((a,b)=>a+b,0)/prices.length).toFixed(2) : null;
-        };
-        const h = getAvg(o.home_team), a = getAvg(o.away_team), d = getAvg('draw');
-        if (!h||!a||!d) return;
-        const mg = 1/h+1/a+1/d;
-        const ph = (1/h/mg*100), pa = (1/a/mg*100);
-        if (h>=1.80&&ph>50) picks.push({ match:`${o.home_team} vs ${o.away_team}`, pick:'home', cote:h, prob:+ph.toFixed(1), bkCount:pool.length, frBkCount:frBks.length });
-        if (a>=1.80&&pa>50) picks.push({ match:`${o.home_team} vs ${o.away_team}`, pick:'away', cote:a, prob:+pa.toFixed(1), bkCount:pool.length, frBkCount:frBks.length });
-      });
+  const byLeague = {};
+  inRange.forEach(o => {
+    const info = SPORT_KEY_TO_LEAGUE[o._sport_key];
+    if (!info) return;
+    if (!byLeague[info.league]) byLeague[info.league] = { events: 0, picks: [] };
+    byLeague[info.league].events++;
+    const frBks = o.bookmakers.filter(b => FR_KEYS.includes(b.key));
+    const pool  = frBks.length >= 2 ? frBks : o.bookmakers;
+    const getAvg = name => {
+      const prices = pool.flatMap(b => b.markets.filter(m=>m.key==='h2h').flatMap(m => m.outcomes.filter(x=>x.name===name||x.name.toLowerCase()===name).map(x=>x.price)));
+      return prices.length ? +(prices.reduce((a,b)=>a+b,0)/prices.length).toFixed(2) : null;
+    };
+    const h = getAvg(o.home_team), a = getAvg(o.away_team), d = getAvg('draw');
+    if (!h||!a||!d) return;
+    const mg = 1/h+1/a+1/d, ph = 1/h/mg*100, pa = 1/a/mg*100;
+    if (h>=1.80&&ph>50) byLeague[info.league].picks.push({ match:`${o.home_team} vs ${o.away_team}`, pick:'domicile', cote:h, prob:+ph.toFixed(1), frBks:frBks.length });
+    if (a>=1.80&&pa>50) byLeague[info.league].picks.push({ match:`${o.home_team} vs ${o.away_team}`, pick:'extérieur', cote:a, prob:+pa.toFixed(1), frBks:frBks.length });
+  });
 
-      trace.leagues.push({
-        sport_key: key,
-        league: SPORT_KEY_TO_LEAGUE[key].league,
-        total_events: all.length,
-        in_3days: inRange.length,
-        eligible_picks: picks.length,
-        picks,
-      });
-    } catch(err) {
-      trace.leagues.push({ sport_key: key, error: err.response?.data?.message || err.message });
-    }
-  }));
-
-  const totalPicks = trace.leagues.reduce((s, l) => s + (l.eligible_picks || 0), 0);
-  trace.total_eligible_picks = totalPicks;
-  trace.verdict = totalPicks > 0 ? '✅ Des picks existent — algo devrait fonctionner' : '❌ Aucun pick — vérifier filtres ou calendrier';
-  res.json(trace);
+  const totalPicks = Object.values(byLeague).reduce((s,l)=>s+l.picks.length,0);
+  res.json({
+    cache_age_min: cacheAge,
+    total_cached_events: allOdds.length,
+    events_in_3days: inRange.length,
+    total_eligible_picks: totalPicks,
+    verdict: totalPicks > 0 ? '✅ Des picks existent' : '❌ Aucun pick dans les 3 prochains jours',
+    by_league: byLeague,
+  });
 });
 
 module.exports = router;
