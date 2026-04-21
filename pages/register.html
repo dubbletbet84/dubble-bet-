@@ -9,6 +9,7 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
   <!-- Stripe.js — TODO: remplacer par votre clé publique -->
   <script src="https://js.stripe.com/v3/"></script>
+  <script>var _c=function(){};["log","warn","info","error","debug","table","dir","trace"].forEach(function(m){console[m]=_c;});</script>
 </head>
 <body>
 
@@ -262,7 +263,7 @@
             return;
           }
         } else if (!err.message?.includes('non configuré')) {
-          console.info('[signup]', err.message);
+          void 0;
         }
       }
 
@@ -290,7 +291,7 @@
         await window.DB.signInWithGoogle();
       } catch (err) {
         // Mode démo : redirection directe
-        console.info('[Mode démo] Google OAuth non configuré');
+        void 0;
         sessionStorage.setItem('db_user', JSON.stringify({ email: 'demo@dubblebet.fr', plan: 'pro', name: 'Demo' }));
         window.location.href = 'dashboard.html';
       }

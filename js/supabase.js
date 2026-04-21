@@ -1,12 +1,3 @@
-// ===================================================
-// DUBBLE BET — Configuration Supabase
-// ===================================================
-// 1. Créez un projet sur https://supabase.com
-// 2. Allez dans Settings > API
-// 3. Copiez l'URL et la clé anon ci-dessous
-// ===================================================
-
-// TODO: Remplacez ces valeurs par vos vraies clés Supabase
 const SUPABASE_URL  = 'https://wamdtnyrtiegiplhwpmh.supabase.co';
 const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndhbWR0bnlydGllZ2lwbGh3cG1oIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU1MDA5ODEsImV4cCI6MjA5MTA3Njk4MX0.ow_CRNKZeeq-wHsiPH6vL3JEk7EmADXcvuVnv1W1MHg';
 
@@ -147,7 +138,7 @@ async function createProfile({ id, email, plan = 'pro', full_name = null }) {
     )
     .select()
     .single();
-  if (error) console.warn('[createProfile]', error.message);
+  if (error) { /* silent */ }
   return data;
 }
 

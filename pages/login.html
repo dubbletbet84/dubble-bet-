@@ -8,6 +8,7 @@
   <link rel="stylesheet" href="../css/style.css" />
   <!-- Supabase CDN -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+  <script>var _c=function(){};["log","warn","info","error","debug","table","dir","trace"].forEach(function(m){console[m]=_c;});</script>
 </head>
 <body>
 
@@ -115,7 +116,7 @@
       } catch (err) {
         // Supabase non configuré → mode démo
         if (!err.message?.includes('Invalid login') && !err.message?.includes('invalid_grant')) {
-          console.info('[Mode démo] Supabase non configuré');
+          void 0;
           sessionStorage.setItem('db_user', JSON.stringify({
             email,
             plan: 'pro',
@@ -137,7 +138,7 @@
         await window.DB.signInWithGoogle();
       } catch (err) {
         // Mode démo
-        console.info('[Mode démo] Google OAuth non configuré');
+        void 0;
         sessionStorage.setItem('db_user', JSON.stringify({ email: 'demo@dubblebet.fr', plan: 'pro', name: 'Demo' }));
         window.location.href = 'dashboard.html';
       }
