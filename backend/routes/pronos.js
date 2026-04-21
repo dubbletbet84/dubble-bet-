@@ -90,22 +90,40 @@ async function runAlgo() {
     const frBks = matchOdds.bookmakers.filter(bk => FR_KEYS.includes(bk.key));
     // Fallback : si moins de 2 sites FR disponibles, on prend les EU
     const pool = frBks.length >= 2 ? frBks : matchOdds.bookmakers;
-    // Limiter à 5 — la moyenne affichée = exactement ces 5 cotes
-    const bk5 = pool.slice(0, 5);
 
-    // Moyenne des cotes sur les 5 bookmakers retenus
+    // Top 5 sites ayant les PLUS GROSSES cotes pour un outcome donné
+    // → moyenne = exactement la moyenne des 5 meilleures cotes affichées
     function avgOdds(outcomeName, marketKey, point) {
-      const prices = [];
-      for (const bk of bk5) {
+      const entries = []; // { bk, price }
+      for (const bk of pool) {
         const mkt = bk.markets.find(mk => mk.key === marketKey);
         if (!mkt) continue;
         const o = point != null
           ? mkt.outcomes.find(x => x.name.toLowerCase() === outcomeName && x.point === point)
           : mkt.outcomes.find(x => x.name.toLowerCase() === outcomeName || x.name === outcomeName);
-        if (o?.price) prices.push(o.price);
+        if (o?.price) entries.push({ key: bk.key, title: bk.title, price: o.price });
       }
-      if (!prices.length) return null;
-      return parseFloat((prices.reduce((a, b) => a + b, 0) / prices.length).toFixed(2));
+      if (!entries.length) return null;
+      // Trier par cote décroissante, garder les 5 meilleures
+      entries.sort((a, b) => b.price - a.price);
+      const top5 = entries.slice(0, 5);
+      const avg  = top5.reduce((s, e) => s + e.price, 0) / top5.length;
+      return parseFloat(avg.toFixed(2));
+    }
+
+    // Même logique mais retourne aussi le détail des 5 sites (pour bookmakersObj)
+    function top5ForOutcome(outcomeName, marketKey, point) {
+      const entries = [];
+      for (const bk of pool) {
+        const mkt = bk.markets.find(mk => mk.key === marketKey);
+        if (!mkt) continue;
+        const o = point != null
+          ? mkt.outcomes.find(x => x.name.toLowerCase() === outcomeName && x.point === point)
+          : mkt.outcomes.find(x => x.name.toLowerCase() === outcomeName || x.name === outcomeName);
+        if (o?.price) entries.push({ key: bk.key, title: bk.title, price: o.price });
+      }
+      entries.sort((a, b) => b.price - a.price);
+      return entries.slice(0, 5);
     }
 
     const avgHome = avgOdds(matchOdds.home_team, 'h2h');
@@ -124,9 +142,21 @@ async function runAlgo() {
     const { league, comp_code } = leagueInfo;
     const extra = { comp_code, homeTeam: matchOdds.home_team, awayTeam: matchOdds.away_team };
 
-    // Objet bookmakers : exactement les 5 retenus (1X2 + double chances + buts)
+    // Top 5 sites (les meilleures cotes h2h) → servent à construire bookmakersObj
+    const top5Home = top5ForOutcome(matchOdds.home_team, 'h2h');
+    const top5Away = top5ForOutcome(matchOdds.away_team, 'h2h');
+    const top5Draw = top5ForOutcome('draw', 'h2h');
+    // Union des 5 sites avec les meilleures cotes sur au moins un outcome
+    const bk5Keys = new Set([
+      ...top5Home.map(e => e.key),
+      ...top5Away.map(e => e.key),
+      ...top5Draw.map(e => e.key),
+    ]);
+    const bk5List = pool.filter(bk => bk5Keys.has(bk.key)).slice(0, 5);
+
+    // Objet bookmakers : exactement les 5 sites retenus (1X2 + double chances + buts)
     const bookmakersObj = {};
-    for (const bk of bk5) {
+    for (const bk of bk5List) {
       const h = bk.markets.find(mk => mk.key === 'h2h');
       if (!h) continue;
       const homeO = h.outcomes.find(x => x.name === matchOdds.home_team);
@@ -176,7 +206,7 @@ async function runAlgo() {
       picks.push({ match: matchStr, league, date, pick: `Double chance 12 — ${matchOdds.home_team} ou ${matchOdds.away_team}`, pick_key: 'dc_12', cote_marche: cote12, prob: probHome + probAway, bookmakers: bookmakersObj, ...extra });
 
     // ── Buts : toutes les lignes disponibles (1.5, 2.5, 3.5…) ────────
-    const allTotals = matchOdds.bookmakers[0]?.markets.find(mk => mk.key === 'totals')?.outcomes || [];
+    const allTotals = bk5List[0]?.markets.find(mk => mk.key === 'totals')?.outcomes || [];
     const lines = allTotals.some(x => x.point != null)
       ? [...new Set(allTotals.filter(x => x.point != null).map(x => x.point))]
       : [null];
