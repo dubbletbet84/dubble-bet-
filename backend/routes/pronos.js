@@ -28,72 +28,64 @@ const FOOTBALL_LEAGUES = [
   'Champions League',
 ];
 
-// ─── Algorithme bookmakers (port direct du script utilisateur) ───
+// ─── Algorithme bookmakers — source primaire : The Odds API ───
 const axios = require('axios');
 
-const LEAGUE_MAP = {
-  'PL': 'Premier League', 'ELC': 'Championship', 'PD': 'La Liga',
-  'SD': 'La Liga 2', 'BL1': 'Bundesliga', 'BL2': '2. Bundesliga',
-  'SA': 'Serie A', 'SB': 'Serie B', 'FL1': 'Ligue 1', 'FL2': 'Ligue 2',
-};
-
-// Correspondance code football-data → sport key The Odds API
-const ODDS_SPORT_KEYS = {
-  'PL':  'soccer_epl',
-  'ELC': 'soccer_efl_champ',
-  'PD':  'soccer_spain_la_liga',
-  'SD':  'soccer_spain_segunda_division',
-  'BL1': 'soccer_germany_bundesliga',
-  'BL2': 'soccer_germany_bundesliga2',
-  'SA':  'soccer_italy_serie_a',
-  'SB':  'soccer_italy_serie_b',
-  'FL1': 'soccer_france_ligue_one',
-  'FL2': 'soccer_france_ligue_two',
+// sport_key The Odds API → { league, comp_code pour football-data standings }
+const SPORT_KEY_TO_LEAGUE = {
+  'soccer_epl':                    { league: 'Premier League', comp_code: 'PL'  },
+  'soccer_efl_champ':              { league: 'Championship',   comp_code: 'ELC' },
+  'soccer_spain_la_liga':          { league: 'La Liga',        comp_code: 'PD'  },
+  'soccer_spain_segunda_division': { league: 'La Liga 2',      comp_code: 'SD'  },
+  'soccer_germany_bundesliga':     { league: 'Bundesliga',     comp_code: 'BL1' },
+  'soccer_germany_bundesliga2':    { league: '2. Bundesliga',  comp_code: 'BL2' },
+  'soccer_italy_serie_a':          { league: 'Serie A',        comp_code: 'SA'  },
+  'soccer_italy_serie_b':          { league: 'Serie B',        comp_code: 'SB'  },
+  'soccer_france_ligue_one':       { league: 'Ligue 1',        comp_code: 'FL1' },
+  'soccer_france_ligue_two':       { league: 'Ligue 2',        comp_code: 'FL2' },
 };
 
 function cleanName(n) {
   return n.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
-    .replace(/fc|cf|as|real|stade|united|city|town|sporting|bayer|atletico|de /g, '').trim();
+    .replace(/\b(fc|cf|as|real|stade|united|city|town|sporting|bayer|atletico|de)\b/g, '').trim();
 }
 
 async function runAlgo() {
   const now    = new Date();
   const future = new Date();
   future.setDate(now.getDate() + 3);
-  const dateFrom = now.toISOString().split('T')[0];
-  const dateTo   = future.toISOString().split('T')[0];
 
   const KEY_F = process.env.FOOTBALL_DATA_KEY || '0bebba720a484535a0105713e0fc7d66';
   const KEY_O = process.env.ODDS_API_KEY || '402dfe4ed1b2e82526e91725d6f02438';
 
-  // Appels parallèles : football-data + chaque ligue sur The Odds API
-  const sportKeys = Object.values(ODDS_SPORT_KEYS);
-  const [resF, ...oddsResults] = await Promise.all([
-    axios.get(`https://api.football-data.org/v4/matches?dateFrom=${dateFrom}&dateTo=${dateTo}`, {
-      headers: { 'X-Auth-Token': KEY_F },
-    }),
-    ...sportKeys.map(key =>
-      axios.get(`https://api.the-odds-api.com/v4/sports/${key}/odds/?apiKey=${KEY_O}&regions=eu&markets=h2h,totals`)
-        .then(r => Array.isArray(r.data) ? r.data : [])
+  // Récupère les cotes pour chaque ligue en parallèle (The Odds API = source primaire)
+  const sportKeys = Object.keys(SPORT_KEY_TO_LEAGUE);
+  const oddsResults = await Promise.all(
+    sportKeys.map(key =>
+      axios.get(
+        `https://api.the-odds-api.com/v4/sports/${key}/odds/`,
+        { params: { apiKey: KEY_O, regions: 'eu', markets: 'h2h,totals' }, timeout: 10000 }
+      )
+        .then(r => (Array.isArray(r.data) ? r.data : []).map(e => ({ ...e, _sport_key: key })))
         .catch(() => [])
-    ),
-  ]);
+    )
+  );
 
-  const matches  = resF.data.matches || [];
-  const oddsData = oddsResults.flat();
-  const picks    = [];
+  // Filtrer sur les 3 prochains jours uniquement
+  const allEvents = oddsResults.flat().filter(o => {
+    const d = new Date(o.commence_time);
+    return d >= now && d <= future;
+  });
 
-  matches.forEach(m => {
-    const leagueCode = m.competition.code;
-    if (!LEAGUE_MAP[leagueCode]) return;
+  const picks = [];
 
-    const matchOdds = oddsData.find(o =>
-      cleanName(m.homeTeam.name).includes(cleanName(o.home_team)) ||
-      cleanName(o.home_team).includes(cleanName(m.homeTeam.name))
-    );
-    if (!matchOdds || !matchOdds.bookmakers.length) return;
+  allEvents.forEach(matchOdds => {
+    if (!matchOdds.bookmakers || !matchOdds.bookmakers.length) return;
 
-    // Calcule la moyenne des cotes sur tous les bookmakers disponibles
+    const leagueInfo = SPORT_KEY_TO_LEAGUE[matchOdds._sport_key];
+    if (!leagueInfo) return;
+
+    // Moyenne des cotes sur tous les bookmakers pour un outcome donné
     function avgOdds(outcomeName, marketKey, point) {
       const prices = [];
       for (const bk of matchOdds.bookmakers) {
@@ -113,16 +105,18 @@ async function runAlgo() {
     const avgDraw = avgOdds('draw', 'h2h');
     if (!avgHome || !avgAway || !avgDraw) return;
 
+    // Devigging : probabilités réelles sans marge bookmaker
     const margin   = (1/avgHome) + (1/avgAway) + (1/avgDraw);
     const probHome = ((1/avgHome) / margin) * 100;
     const probAway = ((1/avgAway) / margin) * 100;
+    const probDraw = ((1/avgDraw) / margin) * 100;
 
-    const matchStr = `${m.homeTeam.name} vs ${m.awayTeam.name}`;
-    const date     = m.utcDate.split('T')[0];
-    const league   = LEAGUE_MAP[leagueCode];
-    const extra    = { comp_code: leagueCode, homeTeam: m.homeTeam.name, awayTeam: m.awayTeam.name };
+    const matchStr = `${matchOdds.home_team} vs ${matchOdds.away_team}`;
+    const date     = matchOdds.commence_time.split('T')[0];
+    const { league, comp_code } = leagueInfo;
+    const extra = { comp_code, homeTeam: matchOdds.home_team, awayTeam: matchOdds.away_team };
 
-    // Construit l'objet bookmakers { "Winamax (FR)": { home, draw, away, over25, ... } }
+    // Objet bookmakers complet : 1X2 + double chances + buts
     const bookmakersObj = {};
     for (const bk of matchOdds.bookmakers) {
       const h = bk.markets.find(mk => mk.key === 'h2h');
@@ -131,74 +125,89 @@ async function runAlgo() {
       const awayO = h.outcomes.find(x => x.name === matchOdds.away_team);
       const drawO = h.outcomes.find(x => x.name.toLowerCase().includes('draw'));
       const entry = {
-        home: homeO?.price,
-        draw: drawO?.price,
-        away: awayO?.price,
+        home: homeO?.price ?? null,
+        draw: drawO?.price ?? null,
+        away: awayO?.price ?? null,
       };
-      // Ajoute les marchés buts
+      // Double chance calculée par bookmaker (cote juste = 1 / somme des probs)
+      const pH = homeO?.price ? 1/homeO.price : 0;
+      const pD = drawO?.price ? 1/drawO.price : 0;
+      const pA = awayO?.price ? 1/awayO.price : 0;
+      if (pH && pD) entry.dc_1X  = parseFloat((1/(pH+pD)).toFixed(2));
+      if (pD && pA) entry.dc_X2  = parseFloat((1/(pD+pA)).toFixed(2));
+      if (pH && pA) entry.dc_12  = parseFloat((1/(pH+pA)).toFixed(2));
+      // Buts (Over/Under)
       const tot = bk.markets.find(mk => mk.key === 'totals');
       if (tot) {
         for (const o of tot.outcomes) {
-          const key = o.name.toLowerCase() === 'over'
+          const k = o.name.toLowerCase() === 'over'
             ? `over${String(o.point || 25).replace('.', '')}`
             : `under${String(o.point || 25).replace('.', '')}`;
-          entry[key] = o.price;
+          entry[k] = o.price;
         }
       }
       bookmakersObj[bk.title] = entry;
     }
 
-    if (avgHome >= 1.80 && probHome > 50) {
-      picks.push({ match: matchStr, league, date, pick: `Victoire ${m.homeTeam.name}`, pick_key: 'home', cote_marche: avgHome, prob: probHome, bookmakers: bookmakersObj, ...extra });
-    }
-    if (avgAway >= 1.80 && probAway > 50) {
-      picks.push({ match: matchStr, league, date, pick: `Victoire ${m.awayTeam.name}`, pick_key: 'away', cote_marche: avgAway, prob: probAway, bookmakers: bookmakersObj, ...extra });
-    }
+    // ── 1X2 ──────────────────────────────────────────────────────────
+    if (avgHome >= 1.80 && probHome > 50)
+      picks.push({ match: matchStr, league, date, pick: `Victoire ${matchOdds.home_team}`, pick_key: 'home', cote_marche: avgHome, prob: probHome, bookmakers: bookmakersObj, ...extra });
+    if (avgAway >= 1.80 && probAway > 50)
+      picks.push({ match: matchStr, league, date, pick: `Victoire ${matchOdds.away_team}`, pick_key: 'away', cote_marche: avgAway, prob: probAway, bookmakers: bookmakersObj, ...extra });
 
-    // Marchés buts : toutes les lignes disponibles (1.5, 2.5, 3.5...)
-    const allTotalsOutcomes = matchOdds.bookmakers[0]?.markets.find(mk => mk.key === 'totals')?.outcomes || [];
-    const hasPoint = allTotalsOutcomes.some(x => x.point != null);
-    const lines = hasPoint
-      ? [...new Set(allTotalsOutcomes.filter(x => x.point != null).map(x => x.point))]
+    // ── Double chances (cote = 1/prob_devigged_combinée) ─────────────
+    const cote1X  = parseFloat((100 / (probHome + probDraw)).toFixed(2));
+    const coteX2  = parseFloat((100 / (probDraw + probAway)).toFixed(2));
+    const cote12  = parseFloat((100 / (probHome + probAway)).toFixed(2));
+
+    if (cote1X >= 1.80 && (probHome + probDraw) > 50)
+      picks.push({ match: matchStr, league, date, pick: `Double chance 1X — ${matchOdds.home_team} ou Nul`, pick_key: 'dc_1X', cote_marche: cote1X, prob: probHome + probDraw, bookmakers: bookmakersObj, ...extra });
+    if (coteX2 >= 1.80 && (probDraw + probAway) > 50)
+      picks.push({ match: matchStr, league, date, pick: `Double chance X2 — Nul ou ${matchOdds.away_team}`, pick_key: 'dc_X2', cote_marche: coteX2, prob: probDraw + probAway, bookmakers: bookmakersObj, ...extra });
+    if (cote12 >= 1.80 && (probHome + probAway) > 50)
+      picks.push({ match: matchStr, league, date, pick: `Double chance 12 — ${matchOdds.home_team} ou ${matchOdds.away_team}`, pick_key: 'dc_12', cote_marche: cote12, prob: probHome + probAway, bookmakers: bookmakersObj, ...extra });
+
+    // ── Buts : toutes les lignes disponibles (1.5, 2.5, 3.5…) ────────
+    const allTotals = matchOdds.bookmakers[0]?.markets.find(mk => mk.key === 'totals')?.outcomes || [];
+    const lines = allTotals.some(x => x.point != null)
+      ? [...new Set(allTotals.filter(x => x.point != null).map(x => x.point))]
       : [null];
 
     lines.forEach(pt => {
       const avgOv = avgOdds('over', 'totals', pt);
       const avgUn = avgOdds('under', 'totals', pt);
       if (!avgOv || !avgUn) return;
-      const mg   = (1/avgOv) + (1/avgUn);
-      const pOv  = ((1/avgOv) / mg) * 100;
-      const pUn  = ((1/avgUn) / mg) * 100;
-      const label = pt != null ? `${pt}` : '2.5';
-      const keyOv = `over${String(pt || 25).replace('.', '')}`;
-      const keyUn = `under${String(pt || 25).replace('.', '')}`;
+      const mg  = (1/avgOv) + (1/avgUn);
+      const pOv = ((1/avgOv) / mg) * 100;
+      const pUn = ((1/avgUn) / mg) * 100;
+      const lbl = pt != null ? `${pt}` : '2.5';
+      const kOv = `over${String(pt || 25).replace('.', '')}`;
+      const kUn = `under${String(pt || 25).replace('.', '')}`;
       if (avgOv >= 1.80 && pOv > 50)
-        picks.push({ match: matchStr, league, date, pick: `+${label} buts`, pick_key: keyOv, cote_marche: avgOv, prob: pOv, bookmakers: bookmakersObj, ...extra });
+        picks.push({ match: matchStr, league, date, pick: `Plus de ${lbl} buts`, pick_key: kOv, cote_marche: avgOv, prob: pOv, bookmakers: bookmakersObj, ...extra });
       if (avgUn >= 1.80 && pUn > 50)
-        picks.push({ match: matchStr, league, date, pick: `-${label} buts`, pick_key: keyUn, cote_marche: avgUn, prob: pUn, bookmakers: bookmakersObj, ...extra });
+        picks.push({ match: matchStr, league, date, pick: `Moins de ${lbl} buts`, pick_key: kUn, cote_marche: avgUn, prob: pUn, bookmakers: bookmakersObj, ...extra });
     });
-
   });
 
   // Filtre : value positive uniquement (cote × prob > 1)
   const positivePicks = picks.filter(p => p.cote_marche * (p.prob / 100) > 1);
   if (!positivePicks.length) return null;
 
-  // Meilleur pick : valeur attendue max (cote × prob)
+  // Meilleur pick : valeur attendue maximale
   const best = positivePicks.sort((a, b) => (b.cote_marche * b.prob) - (a.cote_marche * a.prob))[0];
-  best.confidence = Math.min(92, Math.max(40, Math.round(best.prob * 0.85 + 8)));
-  best.value      = parseFloat(((best.cote_marche * best.prob / 100 - 1) * 100).toFixed(1));
-  best.cote_ia    = parseFloat((100 / best.prob).toFixed(2));
+  best.confidence    = Math.min(92, Math.max(40, Math.round(best.prob * 0.85 + 8)));
+  best.value         = parseFloat(((best.cote_marche * best.prob / 100 - 1) * 100).toFixed(1));
+  best.cote_ia       = parseFloat((100 / best.prob).toFixed(2));
   best.odds_are_real = true;
 
-  // Facteurs de base (enrichis plus bas si standings disponibles)
   best.factors = [
     `Probabilité implicite bookmakers : ${Math.round(best.prob)}%`,
     `Cote moyenne sur ${Object.keys(best.bookmakers || {}).length || 1} site(s) : ${best.cote_marche.toFixed(2)}`,
     `Value edge : +${best.value.toFixed(1)}%`,
   ];
 
-  // Stats équipes depuis le classement football-data.org
+  // Enrichissement stats via football-data.org (standings)
   try {
     const standRes = await axios.get(
       `https://api.football-data.org/v4/competitions/${best.comp_code}/standings`,
@@ -206,7 +215,7 @@ async function runAlgo() {
     );
     const table = standRes.data.standings?.find(s => s.type === 'TOTAL')?.table || [];
 
-    const findRow = (name) => table.find(r =>
+    const findRow = name => table.find(r =>
       cleanName(r.team.name).includes(cleanName(name)) ||
       cleanName(name).includes(cleanName(r.team.name))
     );
@@ -223,9 +232,9 @@ async function runAlgo() {
           form:          hRow.form || '—',
           goals:         avg(hRow.goalsFor, hRow.playedGames),
           goals_against: avg(hRow.goalsAgainst, hRow.playedGames),
-          won:           hRow.won,
-          draw:          hRow.draw,
-          lost:          hRow.lost,
+          won:  hRow.won,
+          draw: hRow.draw,
+          lost: hRow.lost,
         },
         away: {
           name:          best.awayTeam,
@@ -233,28 +242,26 @@ async function runAlgo() {
           form:          aRow.form || '—',
           goals:         avg(aRow.goalsFor, aRow.playedGames),
           goals_against: avg(aRow.goalsAgainst, aRow.playedGames),
-          won:           aRow.won,
-          draw:          aRow.draw,
-          lost:          aRow.lost,
+          won:  aRow.won,
+          draw: aRow.draw,
+          lost: aRow.lost,
         },
       };
 
-      // Facteurs enrichis
       best.factors = [
         `Probabilité implicite bookmakers : ${Math.round(best.prob)}%`,
         `Cote moyenne (${Object.keys(best.bookmakers || {}).length} sites) : ${best.cote_marche.toFixed(2)}`,
         `Value edge : +${best.value.toFixed(1)}%`,
-        `${best.homeTeam} — ${hRow.position}e, forme : ${hRow.form || '—'}`,
-        `${best.awayTeam} — ${aRow.position}e, forme : ${aRow.form || '—'}`,
-        `${best.homeTeam} : ${avg(hRow.goalsFor, hRow.playedGames)} buts/match marqués`,
-        `${best.awayTeam} : ${avg(aRow.goalsAgainst, aRow.playedGames)} buts/match encaissés`,
+        `${best.homeTeam} — ${hRow.position}e au classement, forme : ${hRow.form || '—'}`,
+        `${best.awayTeam} — ${aRow.position}e au classement, forme : ${aRow.form || '—'}`,
+        `${best.homeTeam} : ${avg(hRow.goalsFor, hRow.playedGames)} buts/match marqués, ${avg(hRow.goalsAgainst, hRow.playedGames)} encaissés`,
+        `${best.awayTeam} : ${avg(aRow.goalsFor, aRow.playedGames)} buts/match marqués, ${avg(aRow.goalsAgainst, aRow.playedGames)} encaissés`,
       ];
-      if (hRow.position < aRow.position) {
-        best.factors.push(`${best.homeTeam} mieux classé de ${aRow.position - hRow.position} places`);
-      }
+      if (hRow.position < aRow.position)
+        best.factors.push(`${best.homeTeam} mieux classé de ${aRow.position - hRow.position} place(s)`);
     }
   } catch (_) {
-    // standings non disponibles → facteurs de base conservés
+    // standings non dispo → facteurs de base conservés
   }
 
   return best;
@@ -298,7 +305,7 @@ router.post('/generate', requireAuth, checkQuota, async (req, res) => {
   try {
     const pick = await runAlgo();
     if (!pick) {
-      return res.status(422).json({ error: 'Aucun prono sécurisé trouvé pour les 7 prochains jours.' });
+      return res.status(422).json({ error: 'Aucun prono sécurisé trouvé pour les 3 prochains jours.' });
     }
 
     const pronoData = {
