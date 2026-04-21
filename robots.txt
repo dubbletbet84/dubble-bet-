@@ -1,0 +1,8 @@
+User-agent: *
+Allow: /
+Disallow: /pages/dashboard.html
+Disallow: /pages/results.html
+Disallow: /pages/login.html
+Disallow: /pages/register.html
+
+Sitemap: https://dubblebet.netlify.app/sitemap.xml
