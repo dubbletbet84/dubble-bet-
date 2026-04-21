@@ -84,37 +84,57 @@
           <span class="prono-sport">⚽ Ligue 1 — J30</span>
           <span class="prono-live">LIVE</span>
         </div>
+
+        <!-- Équipes floutées -->
         <div class="prono-match">
           <div class="team">
-            <div class="team-logo green-bg">PSG</div>
-            <span>Paris SG</span>
+            <div class="team-logo green-bg" style="filter:blur(6px);user-select:none">PSG</div>
+            <span style="filter:blur(5px);user-select:none">Paris SG</span>
           </div>
           <div class="prono-vs">VS</div>
           <div class="team">
-            <div class="team-logo grey-bg">OL</div>
-            <span>Lyon</span>
+            <div class="team-logo grey-bg" style="filter:blur(6px);user-select:none">OL</div>
+            <span style="filter:blur(5px);user-select:none">Lyon</span>
           </div>
         </div>
+
+        <!-- Pick flouté, cote visible -->
         <div class="prono-result">
-          <div class="prono-pick">
+          <div class="prono-pick" style="filter:blur(5px);user-select:none">
             <span class="pick-label">Pronostic IA</span>
-            <span class="pick-value">Victoire PSG</span>
+            <span class="pick-value">Victoire ???</span>
           </div>
           <div class="prono-cote">
             <span class="cote-label">Cote moy. marché</span>
             <span class="cote-value">1.94</span>
           </div>
         </div>
+
         <div class="prono-confidence">
           <div class="confidence-bar">
             <div class="confidence-fill" id="heroBar" style="width: 0%"></div>
           </div>
           <span class="confidence-text">Confiance IA : 74%</span>
         </div>
-        <div class="prono-details">
-          <div class="detail-tag green">✓ Mbappé titulaire</div>
-          <div class="detail-tag red">✗ Lacazette blessé</div>
+
+        <!-- Overlay cadenas -->
+        <div style="
+          margin-top:14px;
+          background:rgba(255,255,255,0.04);
+          border:1px solid rgba(255,255,255,0.08);
+          border-radius:10px;
+          padding:12px 16px;
+          display:flex;
+          align-items:center;
+          gap:10px;
+          font-size:13px;
+          color:rgba(255,255,255,0.55);
+        ">
+          <span style="font-size:18px">🔒</span>
+          <span>Crée un compte pour voir le pick complet</span>
+          <a href="/pages/register.html" style="margin-left:auto;font-size:12px;font-weight:700;color:var(--green);text-decoration:none;white-space:nowrap">Accès gratuit →</a>
         </div>
+
       </div>
     </div>
   </section>
