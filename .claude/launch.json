@@ -1,0 +1,17 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "Backend API",
+      "runtimeExecutable": "/usr/local/bin/node",
+      "runtimeArgs": ["backend/server.js"],
+      "port": 3001
+    },
+    {
+      "name": "Frontend",
+      "runtimeExecutable": "/usr/local/bin/node",
+      "runtimeArgs": ["/usr/local/bin/npx", "serve", ".", "-p", "5500"],
+      "port": 5500
+    }
+  ]
+}
