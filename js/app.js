@@ -42,7 +42,7 @@ async function callAPI(path, options = {}) {
         if (!user) return null;
         const profile = await window.DB.getUserProfile(user.id).catch(() => null);
         const plan = profile?.plan || 'pro';
-        const PLAN_QUOTAS = { starter: 5, pro: 10, expert: 30, illimite: -1, unit: 1 };
+        const PLAN_QUOTAS = { starter: 5, pro: 10, expert: 30, illimite: -1 };
         const max = PLAN_QUOTAS[plan] ?? 10;
         const weekStart = new Date();
         weekStart.setDate(weekStart.getDate() - weekStart.getDay());

@@ -16,7 +16,7 @@ const supabase = createClient(
 );
 
 // Quotas par plan
-const PLAN_QUOTAS = { starter: 5, pro: 10, expert: 30, illimite: Infinity, unit: 1 };
+const PLAN_QUOTAS = { starter: 5, pro: 10, expert: 30, illimite: Infinity };
 
 // Ligues supportées (scan automatique)
 const FOOTBALL_LEAGUES = [
