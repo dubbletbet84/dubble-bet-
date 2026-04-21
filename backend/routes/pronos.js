@@ -369,12 +369,14 @@ router.post('/generate', requireAuth, checkQuota, async (req, res) => {
       .single();
 
     if (error) throw error;
-    // Renvoyer les données Supabase + bookmakers réels (non stockés en base)
+    // Renvoyer les données Supabase + données enrichies (non stockées en base)
     res.json({
       ...saved,
-      bookmakers:    pick.bookmakers || {},
+      bookmakers:    pick.bookmakers   || {},
       pick_key:      pick.pick_key,
       odds_are_real: true,
+      team_stats:    pick.team_stats   || null,
+      factors:       pick.factors      || [],
     });
   } catch (err) {
     console.error('[pronos/generate]', err.message);

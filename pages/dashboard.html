@@ -494,51 +494,76 @@
       // Stats équipes (backend retourne team_stats)
       const tsEl = document.getElementById('teamStatsContent');
       const teamStats = prono.team_stats || prono.teamStats;
+
+      // Rendu de la forme : W=vert, D=gris, L=rouge
+      function renderForm(form) {
+        if (!form || form === '—') return '<span style="color:rgba(255,255,255,0.3)">—</span>';
+        return form.split('').map(c => {
+          const color = c === 'W' ? '#4ade80' : c === 'D' ? 'rgba(255,255,255,0.4)' : '#f87171';
+          const label = c === 'W' ? 'V' : c === 'D' ? 'N' : 'D';
+          return `<span style="display:inline-block;width:20px;height:20px;line-height:20px;text-align:center;border-radius:4px;background:${color}20;color:${color};font-size:10px;font-weight:700;margin:0 1px">${label}</span>`;
+        }).join('');
+      }
+
       if (teamStats) {
         const { home, away } = teamStats;
-        const isReal = home.position != null; // stats réelles si position disponible
-
-        // Lignes communes
-        const rows = [['Forme récente', home.form || '—', away.form || '—']];
-
-        if (isReal) {
-          // Stats réelles depuis le classement
-          rows.push(
-            ['Position',      `${home.position}e`, `${away.position}e`],
-            ['Buts marqués',  `${home.goals}/m`, `${away.goals}/m`],
-            ['Buts encaissés',`${home.goals_against}/m`, `${away.goals_against}/m`],
-            ['V / N / D',     `${home.won}/${home.draw}/${home.lost}`, `${away.won}/${away.draw}/${away.lost}`],
-          );
-        } else {
-          // Stats simulées (autres sports)
-          if (home.goals   != null) rows.push(['Buts / match', home.goals || '—', away.goals || '—']);
-          if (home.xg      != null) rows.push(['xG moyen',     home.xg   || '—', away.xg   || '—']);
-          if (home.points  != null) rows.push(['Pts / match',  home.points || '—', away.points || '—']);
-          if (home.ko_rate != null) rows.push(['KO rate',      home.ko_rate || '—', away.ko_rate || '—']);
-        }
-
-        const sourceLabel = isReal
-          ? '<span style="font-size:11px;color:rgba(255,255,255,0.3);float:right">Données réelles · football-data.org</span>'
-          : '<span style="font-size:11px;color:rgba(255,255,255,0.3);float:right">Données simulées</span>';
+        const isReal = home.position != null;
 
         tsEl.innerHTML = `
-          <div class="team-stat-row" style="margin-bottom:14px">
-            <span class="ts-label">${sourceLabel}</span>
+          <!-- Noms des équipes -->
+          <div class="team-stat-row" style="margin-bottom:16px;padding-bottom:12px;border-bottom:1px solid rgba(255,255,255,0.06)">
+            <span class="ts-label" style="visibility:hidden">—</span>
             <div class="ts-vals">
-              <span class="ts-val home">${home.name}</span>
-              <span class="ts-val away">${away.name}</span>
+              <span class="ts-val home" style="font-weight:700">${home.name}</span>
+              <span class="ts-val away" style="font-weight:700">${away.name}</span>
             </div>
           </div>
-          ${rows.map(([label, h, a]) => `
-            <div class="team-stat-row">
-              <span class="ts-label">${label}</span>
-              <div class="ts-vals">
-                <span class="ts-val home">${h}</span>
-                <span class="ts-val away">${a}</span>
-              </div>
+
+          ${isReal ? `
+          <!-- Classement -->
+          <div class="team-stat-row" style="margin-bottom:12px">
+            <span class="ts-label">🏆 Classement</span>
+            <div class="ts-vals">
+              <span class="ts-val home" style="font-size:16px;font-weight:800;color:#4ade80">${home.position}e</span>
+              <span class="ts-val away" style="font-size:16px;font-weight:800;color:#4ade80">${away.position}e</span>
             </div>
-          `).join('')}
+          </div>` : ''}
+
+          <!-- Forme (5 derniers matchs) -->
+          <div class="team-stat-row" style="margin-bottom:12px">
+            <span class="ts-label">📈 Forme récente</span>
+            <div class="ts-vals">
+              <span class="ts-val home">${renderForm(home.form)}</span>
+              <span class="ts-val away">${renderForm(away.form)}</span>
+            </div>
+          </div>
+
+          ${isReal ? `
+          <!-- Buts -->
+          <div class="team-stat-row" style="margin-bottom:8px">
+            <span class="ts-label">⚽ Buts marqués</span>
+            <div class="ts-vals">
+              <span class="ts-val home">${home.goals}/m</span>
+              <span class="ts-val away">${away.goals}/m</span>
+            </div>
+          </div>
+          <div class="team-stat-row" style="margin-bottom:8px">
+            <span class="ts-label">🛡️ Buts encaissés</span>
+            <div class="ts-vals">
+              <span class="ts-val home">${home.goals_against}/m</span>
+              <span class="ts-val away">${away.goals_against}/m</span>
+            </div>
+          </div>
+          <div class="team-stat-row">
+            <span class="ts-label">V / N / D</span>
+            <div class="ts-vals">
+              <span class="ts-val home" style="font-size:12px">${home.won}V ${home.draw}N ${home.lost}D</span>
+              <span class="ts-val away" style="font-size:12px">${away.won}V ${away.draw}N ${away.lost}D</span>
+            </div>
+          </div>` : ''}
         `;
+      } else {
+        tsEl.innerHTML = `<p style="color:rgba(255,255,255,0.3);font-size:13px;text-align:center;padding:1rem 0">Stats non disponibles pour ce match</p>`;
       }
 
       // Blessés
