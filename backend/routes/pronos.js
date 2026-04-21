@@ -64,7 +64,7 @@ async function runAlgo() {
     sportKeys.map(key =>
       axios.get(
         `https://api.the-odds-api.com/v4/sports/${key}/odds/`,
-        { params: { apiKey: KEY_O, regions: 'eu,fr', markets: 'h2h,totals' }, timeout: 10000 }
+        { params: { apiKey: KEY_O, regions: 'eu', markets: 'h2h,totals' }, timeout: 10000 }
       )
         .then(r => (Array.isArray(r.data) ? r.data : []).map(e => ({ ...e, _sport_key: key })))
         .catch(() => [])
