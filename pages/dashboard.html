@@ -113,10 +113,8 @@
           <div class="stat-card-value green" id="statWinRate">—</div>
           <div class="stat-card-sub">matchs terminés</div>
         </div>
-        <div class="stat-card">
-          <div class="stat-card-label">Value moyenne</div>
+        <div class="stat-card" style="display:none">
           <div class="stat-card-value yellow" id="statValue">—</div>
-          <div class="stat-card-sub">sur le marché</div>
         </div>
         <div class="stat-card">
           <div class="stat-card-label">Pronos restants</div>
@@ -177,16 +175,8 @@
           </div>
         </div>
 
-        <!-- Value détectée -->
-        <div class="value-section">
-          <div class="value-icon">⚡</div>
-          <div class="value-text">
-            <div class="value-label">Value détectée sur le marché</div>
-            <div class="value-num" id="valueNum">+12.8%</div>
-          </div>
-          <div style="font-size:12px;color:rgba(255,255,255,0.35);max-width:200px;text-align:right">
-            La cote IA est significativement meilleure que la moyenne bookmakers.
-          </div>
+        <div class="value-section" style="display:none">
+          <div class="value-num" id="valueNum"></div>
         </div>
 
         <!-- Alternatives IA -->
