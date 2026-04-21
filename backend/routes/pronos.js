@@ -64,7 +64,7 @@ async function runAlgo() {
     sportKeys.map(key =>
       axios.get(
         `https://api.the-odds-api.com/v4/sports/${key}/odds/`,
-        { params: { apiKey: KEY_O, regions: 'eu', markets: 'h2h,totals' }, timeout: 10000 }
+        { params: { apiKey: KEY_O, regions: 'eu,fr', markets: 'h2h,totals' }, timeout: 10000 }
       )
         .then(r => (Array.isArray(r.data) ? r.data : []).map(e => ({ ...e, _sport_key: key })))
         .catch(() => [])
@@ -85,10 +85,18 @@ async function runAlgo() {
     const leagueInfo = SPORT_KEY_TO_LEAGUE[matchOdds._sport_key];
     if (!leagueInfo) return;
 
-    // Moyenne des cotes sur tous les bookmakers pour un outcome donné
+    // Bookmakers français prioritaires (clés The Odds API)
+    const FR_KEYS = ['winamax_fr', 'betclic', 'unibet_fr', 'pmu', 'france_pari', 'parions_sport', 'vbet_fr', 'bwin_fr', 'pokerstars_fr'];
+    const frBks = matchOdds.bookmakers.filter(bk => FR_KEYS.includes(bk.key));
+    // Fallback : si moins de 2 sites FR disponibles, on prend les EU
+    const pool = frBks.length >= 2 ? frBks : matchOdds.bookmakers;
+    // Limiter à 5 — la moyenne affichée = exactement ces 5 cotes
+    const bk5 = pool.slice(0, 5);
+
+    // Moyenne des cotes sur les 5 bookmakers retenus
     function avgOdds(outcomeName, marketKey, point) {
       const prices = [];
-      for (const bk of matchOdds.bookmakers) {
+      for (const bk of bk5) {
         const mkt = bk.markets.find(mk => mk.key === marketKey);
         if (!mkt) continue;
         const o = point != null
@@ -116,9 +124,9 @@ async function runAlgo() {
     const { league, comp_code } = leagueInfo;
     const extra = { comp_code, homeTeam: matchOdds.home_team, awayTeam: matchOdds.away_team };
 
-    // Objet bookmakers complet : 1X2 + double chances + buts
+    // Objet bookmakers : exactement les 5 retenus (1X2 + double chances + buts)
     const bookmakersObj = {};
-    for (const bk of matchOdds.bookmakers) {
+    for (const bk of bk5) {
       const h = bk.markets.find(mk => mk.key === 'h2h');
       if (!h) continue;
       const homeO = h.outcomes.find(x => x.name === matchOdds.home_team);
