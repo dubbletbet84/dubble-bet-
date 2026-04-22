@@ -404,6 +404,7 @@ button { cursor: pointer; font-family: var(--font-body); }
    FOOTER
 =========================== */
 .footer { background: var(--dark); border-top: 2px solid var(--green); padding: 64px 0 0; }
+.footer-app { margin-left: 260px; }
 .footer-inner { display: flex; gap: 80px; justify-content: space-between; flex-wrap: wrap; padding-bottom: 64px; }
 .footer-logo .logo-dubble { font-family: var(--font-display); font-size: 30px; color: var(--green); letter-spacing: 4px; }
 .footer-logo .logo-bet    { font-family: var(--font-display); font-size: 18px; color: var(--yellow); letter-spacing: 5px; }
@@ -861,6 +862,7 @@ button { cursor: pointer; font-family: var(--font-body); }
   .form-row { grid-template-columns: 1fr 1fr; }
   .sidebar { width: 220px; }
   .dashboard-main { margin-left: 220px; }
+  .footer-app { margin-left: 220px; }
 }
 
 @media (max-width: 768px) {
@@ -879,6 +881,7 @@ button { cursor: pointer; font-family: var(--font-body); }
   .sidebar { transform: translateX(-100%); transition: transform 0.3s; width: 260px; }
   .sidebar.open  { transform: translateX(0); }
   .dashboard-main { margin-left: 0; padding: 20px; }
+  .footer-app { margin-left: 0; }
   .stats-row { grid-template-columns: 1fr 1fr; }
   .form-row  { grid-template-columns: 1fr; }
   .results-banner-grid { grid-template-columns: repeat(2,1fr); }
