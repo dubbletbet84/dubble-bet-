@@ -373,6 +373,64 @@ async function runAlgo(sportFilter = 'football') {
   return best;
 }
 
+// ─── Fallback démo réaliste (quota API épuisé) ───────
+const DEMO_PICKS = {
+  football: [
+    { match: 'Paris Saint-Germain vs Marseille', league: 'Ligue 1',        pick: 'Victoire Paris Saint-Germain', pick_key: 'home', cote_marche: 1.95, prob: 64, confidence: 72 },
+    { match: 'Real Madrid vs Atletico Madrid',   league: 'La Liga',         pick: 'Victoire Real Madrid',         pick_key: 'home', cote_marche: 2.05, prob: 61, confidence: 68 },
+    { match: 'Bayern Munich vs Dortmund',        league: 'Bundesliga',      pick: 'Victoire Bayern Munich',       pick_key: 'home', cote_marche: 1.88, prob: 66, confidence: 74 },
+    { match: 'Liverpool vs Arsenal',             league: 'Premier League',  pick: 'Victoire Liverpool',           pick_key: 'home', cote_marche: 2.10, prob: 58, confidence: 65 },
+    { match: 'Inter Milan vs Juventus',          league: 'Serie A',         pick: 'Plus de 2.5 buts',             pick_key: 'over25', cote_marche: 1.90, prob: 62, confidence: 69 },
+  ],
+  tennis: [
+    { match: 'Novak Djokovic vs Carlos Alcaraz', league: 'ATP Tour', pick: 'Victoire Novak Djokovic', pick_key: 'home', cote_marche: 1.85, prob: 63, confidence: 70 },
+    { match: 'Jannik Sinner vs Rafael Nadal',    league: 'ATP Tour', pick: 'Victoire Jannik Sinner',  pick_key: 'home', cote_marche: 1.75, prob: 68, confidence: 74 },
+  ],
+  basketball: [
+    { match: 'Los Angeles Lakers vs Golden State Warriors', league: 'NBA', pick: 'Victoire LA Lakers',          pick_key: 'home', cote_marche: 2.00, prob: 59, confidence: 65 },
+    { match: 'Boston Celtics vs Milwaukee Bucks',           league: 'NBA', pick: 'Victoire Boston Celtics',     pick_key: 'home', cote_marche: 1.90, prob: 63, confidence: 68 },
+  ],
+  mma: [
+    { match: 'Jon Jones vs Stipe Miocic', league: 'UFC', pick: 'Victoire Jon Jones', pick_key: 'home', cote_marche: 1.80, prob: 67, confidence: 71 },
+  ],
+  boxe: [
+    { match: 'Tyson Fury vs Anthony Joshua', league: 'Boxe mondiale', pick: 'Victoire Tyson Fury', pick_key: 'home', cote_marche: 1.95, prob: 61, confidence: 66 },
+  ],
+  rugby: [
+    { match: 'Toulouse vs La Rochelle', league: 'Top 14', pick: 'Victoire Toulouse', pick_key: 'home', cote_marche: 1.85, prob: 64, confidence: 70 },
+  ],
+};
+
+function buildDemoPick(sport) {
+  const pool = DEMO_PICKS[sport] || DEMO_PICKS.football;
+  const raw  = pool[Math.floor(Math.random() * pool.length)];
+  const tomorrow = new Date();
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  const date = tomorrow.toISOString().split('T')[0];
+
+  return {
+    ...raw,
+    sport,
+    date,
+    cote_ia:       parseFloat((raw.cote_marche * 0.92).toFixed(2)),
+    value:         parseFloat(((raw.cote_marche * raw.prob / 100 - 1) * 100).toFixed(1)),
+    odds_are_real: false,
+    is_demo:       true,
+    bookmakers: {
+      'Bet365':  { home: raw.cote_marche + 0.05, draw: 3.40, away: 4.20 },
+      'Winamax': { home: raw.cote_marche,        draw: 3.50, away: 4.10 },
+      'Betclic': { home: raw.cote_marche - 0.05, draw: 3.45, away: 4.15 },
+    },
+    team_stats: null,
+    factors: [
+      `Probabilité implicite bookmakers : ${raw.prob}%`,
+      `Cote moyenne marché : ${raw.cote_marche.toFixed(2)}`,
+      `Value edge estimée : +${parseFloat(((raw.cote_marche * raw.prob / 100 - 1) * 100).toFixed(1))}%`,
+      '⚠️ Données démo — cotes temps réel temporairement indisponibles',
+    ],
+  };
+}
+
 // ─── Middleware : vérifier quota ─────────────────────
 async function checkQuota(req, res, next) {
   const weekStart = new Date();
@@ -412,9 +470,11 @@ router.post('/generate', requireAuth, checkQuota, async (req, res) => {
     const VALID_SPORTS = ['football', 'tennis', 'basketball', 'mma', 'boxe', 'rugby'];
     const sport = VALID_SPORTS.includes(req.body?.sport) ? req.body.sport : 'football';
 
-    const pick = await runAlgo(sport);
+    let pick = await runAlgo(sport);
+    // Fallback démo si API épuisée ou aucun match trouvé
     if (!pick) {
-      return res.status(422).json({ error: `Aucun prono sécurisé trouvé en ${sport} pour les 3 prochains jours.` });
+      console.warn(`[pronos] Aucun pick réel pour ${sport} → fallback démo`);
+      pick = buildDemoPick(sport);
     }
 
     const pronoData = {
