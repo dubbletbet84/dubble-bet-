@@ -89,34 +89,41 @@ function cleanName(n) {
     .replace(/\b(fc|cf|as|real|stade|united|city|town|sporting|bayer|atletico|de)\b/g, '').trim();
 }
 
-// ─── Cache mémoire des cotes (TTL 2h) ────────────────
-// Évite de brûler le quota Odds API à chaque génération
-let _oddsCache     = null;
-let _oddsCacheTime = 0;
-const CACHE_TTL    = 15 * 60 * 1000; // 15 minutes en ms
+// ─── Cache par sport_key individuel (TTL 30 min) ─────
+// 1 appel par sport_key → on ne fetch QUE le sport demandé
+// Économise le quota : max 2 appels/heure par sport au lieu de 20
+const _oddsCachePerKey = {};
+const CACHE_TTL = 30 * 60 * 1000; // 30 min
 
-async function fetchAllOdds(KEY_O) {
-  const age = Date.now() - _oddsCacheTime;
-  if (_oddsCache && age < CACHE_TTL) {
-    console.log(`[odds] cache hit (${Math.round(age/60000)}min old)`);
-    return _oddsCache;
-  }
-  console.log('[odds] fetching from The Odds API...');
-  const sportKeys = Object.keys(SPORT_KEY_TO_LEAGUE);
+async function fetchOddsForSport(sportFilter, KEY_O) {
+  const keysToFetch = Object.entries(SPORT_KEY_TO_LEAGUE)
+    .filter(([, info]) => info.sport === sportFilter)
+    .map(([key]) => key);
+
+  const now = Date.now();
   const results = await Promise.all(
-    sportKeys.map(key =>
-      axios.get(
-        `https://api.the-odds-api.com/v4/sports/${key}/odds/`,
-        { params: { apiKey: KEY_O, regions: 'eu', markets: 'h2h,totals' }, timeout: 10000 }
-      )
-        .then(r => (Array.isArray(r.data) ? r.data : []).map(e => ({ ...e, _sport_key: key })))
-        .catch(err => { console.error(`[odds] ${key}:`, err.message); return []; })
-    )
+    keysToFetch.map(async key => {
+      const cached = _oddsCachePerKey[key];
+      if (cached && now - cached.ts < CACHE_TTL) {
+        console.log(`[odds] cache hit: ${key}`);
+        return cached.data;
+      }
+      try {
+        const { data } = await axios.get(
+          `https://api.the-odds-api.com/v4/sports/${key}/odds/`,
+          { params: { apiKey: KEY_O, regions: 'eu', markets: 'h2h,totals' }, timeout: 10000 }
+        );
+        const events = (Array.isArray(data) ? data : []).map(e => ({ ...e, _sport_key: key }));
+        _oddsCachePerKey[key] = { ts: now, data: events };
+        console.log(`[odds] fetched ${events.length} events for ${key}`);
+        return events;
+      } catch (err) {
+        console.error(`[odds] ${key}:`, err.response?.status, err.message);
+        return _oddsCachePerKey[key]?.data || [];
+      }
+    })
   );
-  _oddsCache     = results.flat();
-  _oddsCacheTime = Date.now();
-  console.log(`[odds] cached ${_oddsCache.length} events`);
-  return _oddsCache;
+  return results.flat();
 }
 
 // Sports sans match nul (marché h2h à 2 issues uniquement)
@@ -130,15 +137,13 @@ async function runAlgo(sportFilter = 'football') {
   const KEY_AF = process.env.FOOTBALL_API_KEY || 'f19baef537e16102a9cf2050df18afe8';
   const KEY_O  = process.env.ODDS_API_KEY || '402dfe4ed1b2e82526e91725d6f02438';
 
-  // Récupère les cotes via le cache (15 min)
-  const oddsData = await fetchAllOdds(KEY_O);
+  // Récupère uniquement les cotes du sport demandé (cache 30 min par key)
+  const oddsData = await fetchOddsForSport(sportFilter, KEY_O);
 
-  // Filtrer sur les 3 prochains jours + sport demandé
+  // Filtrer sur les 3 prochains jours
   const allEvents = oddsData.filter(o => {
     const d = new Date(o.commence_time);
-    if (d < now || d > future) return false;
-    const info = SPORT_KEY_TO_LEAGUE[o._sport_key];
-    return info && info.sport === sportFilter;
+    return d >= now && d <= future;
   });
 
   const picks = [];
