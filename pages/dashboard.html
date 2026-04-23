@@ -174,6 +174,51 @@
           <div class="value-num" id="valueNum"></div>
         </div>
 
+        <!-- Bloc Tennis (affiché uniquement pour le tennis) -->
+        <div id="tennisPanel" style="display:none;margin:20px 0;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:16px;padding:20px 24px">
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px">
+            <span style="font-size:20px">🎾</span>
+            <div>
+              <div id="tennisSurface" style="font-size:13px;color:var(--green);font-weight:600"></div>
+              <div id="tennisFormat" style="font-size:11px;color:rgba(255,255,255,0.4);margin-top:2px"></div>
+            </div>
+          </div>
+
+          <!-- Score prédit -->
+          <div style="background:rgba(74,222,128,0.06);border:1px solid rgba(74,222,128,0.15);border-radius:12px;padding:16px;margin-bottom:16px;text-align:center">
+            <div style="font-size:11px;color:rgba(255,255,255,0.4);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">Score prédit</div>
+            <div style="display:flex;align-items:center;justify-content:center;gap:16px">
+              <span id="tennisWinner" style="font-size:14px;font-weight:700;color:#fff"></span>
+              <span id="tennisScore" style="font-size:28px;font-weight:900;color:var(--green);font-family:var(--font-display)"></span>
+            </div>
+            <div id="tennisSetScores" style="font-size:13px;color:rgba(255,255,255,0.5);margin-top:6px"></div>
+          </div>
+
+          <!-- Probabilités sets -->
+          <div style="margin-bottom:16px">
+            <div style="font-size:11px;color:rgba(255,255,255,0.4);text-transform:uppercase;letter-spacing:1px;margin-bottom:10px">Distribution des scores</div>
+            <div id="tennisDistribution" style="display:flex;flex-wrap:wrap;gap:8px"></div>
+          </div>
+
+          <!-- Jeux & tiebreak -->
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px">
+            <div style="background:rgba(255,255,255,0.03);border-radius:10px;padding:12px;text-align:center">
+              <div style="font-size:11px;color:rgba(255,255,255,0.4);margin-bottom:4px">Total jeux estimé</div>
+              <div id="tennisGames" style="font-size:22px;font-weight:800;color:#fff"></div>
+              <div id="tennisOverUnder" style="font-size:11px;color:rgba(255,255,255,0.4);margin-top:4px"></div>
+            </div>
+            <div style="background:rgba(255,255,255,0.03);border-radius:10px;padding:12px;text-align:center">
+              <div style="font-size:11px;color:rgba(255,255,255,0.4);margin-bottom:4px">Prob. tiebreak</div>
+              <div id="tennisTiebreak" style="font-size:22px;font-weight:800;color:#fff"></div>
+              <div style="font-size:11px;color:rgba(255,255,255,0.4);margin-top:4px">au moins 1 set</div>
+            </div>
+          </div>
+
+          <!-- Stats joueurs -->
+          <div style="font-size:11px;color:rgba(255,255,255,0.4);text-transform:uppercase;letter-spacing:1px;margin-bottom:10px">Stats joueurs</div>
+          <div id="tennisPlayerStats"></div>
+        </div>
+
         <!-- Alternatives IA -->
         <div class="alternatives-section" id="alternativesSection" style="display:none">
           <div class="alt-title">Autres picks analysés</div>
@@ -610,6 +655,59 @@
             <span style="font-size:13px;color:rgba(255,255,255,0.65)">${f}</span>
           </div>
         `).join('');
+      }
+
+      // ── Bloc Tennis ──────────────────────────────────
+      const tennisPanel = document.getElementById('tennisPanel');
+      if (prono.sport === 'tennis' && prono.tennis) {
+        tennisPanel.style.display = 'block';
+        const t = prono.tennis;
+
+        document.getElementById('tennisSurface').textContent = t.surface_label;
+        document.getElementById('tennisFormat').textContent  = t.format;
+        document.getElementById('tennisWinner').textContent  = t.winner;
+        document.getElementById('tennisScore').textContent   = t.predicted_score;
+        document.getElementById('tennisSetScores').textContent = t.predicted_set_scores;
+        document.getElementById('tennisGames').textContent   = `~${t.total_games.estimate}`;
+        document.getElementById('tennisOverUnder').textContent = `Over ${t.total_games.over_line} / Under ${t.total_games.under_line}`;
+        document.getElementById('tennisTiebreak').textContent = `${t.tiebreak_prob}%`;
+
+        // Distribution des scores
+        const distEl = document.getElementById('tennisDistribution');
+        distEl.innerHTML = t.set_distribution
+          .sort((a, b) => b.prob - a.prob)
+          .map(d => `
+            <div style="background:${d.isLoss ? 'rgba(248,113,113,0.08)' : 'rgba(74,222,128,0.08)'};
+                        border:1px solid ${d.isLoss ? 'rgba(248,113,113,0.2)' : 'rgba(74,222,128,0.15)'};
+                        border-radius:8px;padding:8px 12px;text-align:center;min-width:80px">
+              <div style="font-size:16px;font-weight:800;color:${d.isLoss ? '#f87171' : 'var(--green)'}">
+                ${d.isLoss ? t.loser : t.winner} ${d.score}
+              </div>
+              <div style="font-size:11px;color:rgba(255,255,255,0.4);margin-top:2px">${Math.round(d.prob * 100)}%</div>
+            </div>`).join('');
+
+        // Stats joueurs
+        const psEl = document.getElementById('tennisPlayerStats');
+        const ps = t.player_stats;
+        psEl.innerHTML = `
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+            ${[ps.home, ps.away].map(p => `
+              <div style="background:rgba(255,255,255,0.03);border-radius:10px;padding:12px">
+                <div style="font-size:12px;font-weight:700;color:#fff;margin-bottom:8px">${p.name || '?'}</div>
+                <div style="font-size:11px;color:rgba(255,255,255,0.5);margin-bottom:4px">
+                  🎯 1ère balle : <strong style="color:#fff">${p.first_serve_pct?.toFixed(0)}%</strong>
+                </div>
+                <div style="font-size:11px;color:rgba(255,255,255,0.5);margin-bottom:4px">
+                  ⚡ Aces/match : <strong style="color:#fff">${p.aces?.toFixed(0)}</strong>
+                </div>
+                <div style="font-size:11px;color:rgba(255,255,255,0.5);margin-bottom:4px">
+                  📊 Win% surface : <strong style="color:var(--green)">${p.surface_wr?.toFixed(0)}%</strong>
+                </div>
+                ${p.fatigue > 1 ? `<div style="font-size:11px;color:#fbbf24;margin-top:4px">⚠️ Fatigue : ${p.fatigue.toFixed(0)} matchs récents</div>` : ''}
+              </div>`).join('')}
+          </div>`;
+      } else {
+        tennisPanel.style.display = 'none';
       }
 
       updateReanalyzeUI();

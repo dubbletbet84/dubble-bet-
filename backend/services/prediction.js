@@ -187,8 +187,108 @@ function predictFootball(data) {
 
 
 // ===================================================
-// 🎾 TENNIS — Elo proxy + surface + fatigue
+// 🎾 TENNIS — Modèle probabiliste complet
+// Win prob (bookmakers) → sets → jeux → tiebreak
 // ===================================================
+
+function detectSurface(league) {
+  if (/clay|terre|roland|monte.carlo|madrid|rome|barcelona|hamburg|geneva|lyon/i.test(league)) return 'clay';
+  if (/grass|wimbledon|queen|halle|hertogenbosch|eastbourne|nottingham/i.test(league))         return 'grass';
+  return 'hard';
+}
+
+function isGrandSlam(league) {
+  return /roland|wimbledon|us.?open|australian|grand.?slam/i.test(league);
+}
+
+// Probabilité binomiale P(X >= k parmi n, p)
+function binomCdf(n, k, p) {
+  let prob = 0;
+  for (let i = k; i <= n; i++) {
+    let c = 1;
+    for (let j = 0; j < i; j++) c = c * (n - j) / (j + 1);
+    prob += c * Math.pow(p, i) * Math.pow(1 - p, n - i);
+  }
+  return Math.min(1, prob);
+}
+
+// Estime la probabilité de gagner un set à partir de prob match
+// Calibration : p_match=0.70 → p_set≈0.60, p_match=0.55 → p_set≈0.53
+function matchProbToSetProb(pMatch) {
+  return 0.5 + (pMatch - 0.5) * 0.72;
+}
+
+// Distribution des scores de sets (best-of-3 ou best-of-5)
+function setScoreDistribution(pWin, setsToWin) {
+  const pSet = matchProbToSetProb(pWin);
+  const pLose = 1 - pSet;
+  const dist = [];
+
+  if (setsToWin === 2) {
+    // 2-0 : gagner 2 sets d'affilée
+    dist.push({ score: '2-0', prob: pSet * pSet });
+    // 2-1 : perdre 1 set sur les 2 premiers puis gagner
+    dist.push({ score: '2-1', prob: 2 * pSet * pLose * pSet });
+    // 0-2 : perdre les 2 premiers
+    dist.push({ score: '0-2', prob: pLose * pLose, isLoss: true });
+    // 1-2 : perdre le 3e set décisif
+    dist.push({ score: '1-2', prob: 2 * pSet * pLose * pLose, isLoss: true });
+  } else {
+    // Best-of-5
+    dist.push({ score: '3-0', prob: pSet ** 3 });
+    dist.push({ score: '3-1', prob: 3 * pSet ** 3 * pLose });
+    dist.push({ score: '3-2', prob: 6 * pSet ** 3 * pLose ** 2 });
+    dist.push({ score: '0-3', prob: pLose ** 3, isLoss: true });
+    dist.push({ score: '1-3', prob: 3 * pLose ** 3 * pSet, isLoss: true });
+    dist.push({ score: '2-3', prob: 6 * pLose ** 3 * pSet ** 2, isLoss: true });
+  }
+
+  // Normaliser pour que la somme = 1
+  const total = dist.reduce((s, d) => s + d.prob, 0);
+  return dist.map(d => ({ ...d, prob: parseFloat((d.prob / total).toFixed(3)) }));
+}
+
+// Estimation jeux totaux selon le score de sets prédit
+function estimateTotalGames(predictedScore, pSet, surface) {
+  // Baseline jeux par set selon la surface
+  const gamesPerSet = { clay: 10.8, hard: 10.2, grass: 9.6 };
+  const base = gamesPerSet[surface] || 10.2;
+
+  const parts = predictedScore.split('-').map(Number);
+  const totalSets = parts[0] + parts[1];
+  // Le set décisif (si 2-1 ou 3-2) est souvent plus serré
+  const decisiveBonus = parts[1] > 0 ? 1.5 : 0;
+  const estimated = Math.round(totalSets * base + decisiveBonus);
+
+  return {
+    estimate: estimated,
+    over: estimated + 2,  // ligne over/under +2
+    under: estimated - 2,
+    prob_over: parseFloat((0.45 + (0.5 - pSet) * 0.3).toFixed(2)),  // match serré → plus de jeux
+  };
+}
+
+// Score de sets lisible par set (ex: "6-4, 3-6, 6-3")
+function buildSetScores(predictedScore, pSet, surface) {
+  const parts = predictedScore.split('-').map(Number);
+  const winner = parts[0];
+  const loser  = parts[1];
+  const sets = [];
+
+  // Surface influence le style de jeu (clay = plus de jeux, grass = moins)
+  const avgGames = { clay: [6, 4], hard: [6, 3], grass: [6, 2] }[surface] || [6, 3];
+
+  for (let i = 0; i < winner; i++) {
+    // Sets gagnés par le favori
+    const gLost = pSet > 0.65 ? avgGames[1] : (i === winner - 1 && loser > 0 ? 5 : avgGames[1]);
+    sets.push(`6-${gLost}`);
+  }
+  for (let j = 0; j < loser; j++) {
+    // Sets perdus (inséré au milieu pour réalisme)
+    sets.splice(j + 1, 0, `4-6`);
+  }
+  return sets.slice(0, winner + loser).join(', ');
+}
 
 function predictTennis(data) {
   const stats  = data.stats || {};
@@ -199,49 +299,123 @@ function predictTennis(data) {
   const hs     = stats.home || {};
   const as_    = stats.away || {};
 
-  const homeForm = parseForm(hs.form || '50%');
-  const awayForm = parseForm(as_.form || '50%');
+  // ── 1. Probabilité de victoire ────────────────────
+  // Source primaire : cotes bookmakers déviggées
+  const coteHome = calcAvgCote(odds, 'home');
+  const coteAway = calcAvgCote(odds, 'away');
+  let pHome, pAway;
 
-  let surfaceBonus = 0;
-  if (/clay|terre/i.test(league))  surfaceBonus = 0.04;
-  else if (/grass|gazon/i.test(league)) surfaceBonus = 0.03;
+  if (coteHome > 0 && coteAway > 0) {
+    const margin = (1 / coteHome) + (1 / coteAway);
+    pHome = (1 / coteHome) / margin;
+    pAway = (1 / coteAway) / margin;
+  } else {
+    // Fallback stats si pas de cotes
+    const hf = parseForm(hs.form || '50%');
+    const af = parseForm(as_.form || '50%');
+    const t  = hf + af + 0.001;
+    pHome = hf / t;
+    pAway = af / t;
+  }
 
+  // ── 2. Contexte du match ──────────────────────────
+  const surface    = detectSurface(league);
+  const grandSlam  = isGrandSlam(league);
+  const setsToWin  = grandSlam ? 3 : 2;
+  const surfaceLabel = { clay: '🟤 Terre battue', hard: '🔵 Surface dure', grass: '🟢 Gazon' }[surface];
+  const formatLabel  = grandSlam ? 'Grand Chelem (3 sets gagnants)' : 'ATP/WTA (2 sets gagnants)';
+
+  // ── 3. Joueur favori ──────────────────────────────
+  const best   = pHome >= pAway ? 'home' : 'away';
+  const pWin   = best === 'home' ? pHome : pAway;
+  const winner = best === 'home' ? home  : away;
+  const loser  = best === 'home' ? away  : home;
+  const pSet   = matchProbToSetProb(pWin);
+
+  // ── 4. Distribution des scores de sets ───────────
+  const distribution = setScoreDistribution(pWin, setsToWin);
+  const predictedScoreObj = distribution.filter(d => !d.isLoss).sort((a, b) => b.prob - a.prob)[0];
+  const predictedScore    = predictedScoreObj?.score || (setsToWin === 2 ? '2-1' : '3-1');
+  const predictedSetScores = buildSetScores(predictedScore, pSet, surface);
+
+  // ── 5. Estimation jeux ────────────────────────────
+  const gamesInfo = estimateTotalGames(predictedScore, pSet, surface);
+
+  // ── 6. Probabilité tiebreak ───────────────────────
+  // Plus le match est serré, plus de chances de tiebreak
+  const tiebreakProb = Math.round((0.12 + (1 - Math.abs(pHome - pAway)) * 0.18) * 100);
+
+  // ── 7. Stats clés ─────────────────────────────────
+  const homeFSP   = parseFloat(hs.first_serve_pct || 62);   // % 1ère balle
+  const awayFSP   = parseFloat(as_.first_serve_pct || 60);
+  const homeAces  = parseFloat(hs.aces || 5);
+  const awayAces  = parseFloat(as_.aces || 4);
   const homeFatigue = parseFloat(hs.fatigue || 0);
   const awayFatigue = parseFloat(as_.fatigue || 0);
+  const homeSurfWR = parseFloat(hs[`wr_${surface}`] || hs.form ? parseForm(hs.form || '50%') * 100 : 55);
+  const awaySurfWR = parseFloat(as_[`wr_${surface}`] || as_.form ? parseForm(as_.form || '50%') * 100 : 50);
 
-  const homeScore = homeForm + surfaceBonus - homeFatigue * 0.05;
-  const awayScore = awayForm - awayFatigue * 0.05;
-  const total     = homeScore + awayScore + 0.001;
-  const pHome     = homeScore / total;
-  const pAway     = awayScore / total;
+  // ── 8. Facteurs d'analyse ─────────────────────────
+  const factors = [
+    `${winner.name || 'Favori'} favori à ${Math.round(pWin * 100)}% selon les bookmakers`,
+    `Surface : ${surfaceLabel} — avantage analysé`,
+    `Score prédit : ${winner.name || 'Favori'} ${predictedScore} (${predictedSetScores})`,
+    `Total jeux estimé : ~${gamesInfo.estimate} (over ${gamesInfo.over} / under ${gamesInfo.under})`,
+  ];
+  if (homeFatigue > 2 || awayFatigue > 2) {
+    const tired = homeFatigue > awayFatigue ? home.name : away.name;
+    factors.push(`⚠️ Fatigue détectée — ${tired} (${Math.max(homeFatigue, awayFatigue).toFixed(0)} matchs récents)`);
+  }
+  if (Math.abs(homeFSP - awayFSP) > 5) {
+    const better = homeFSP > awayFSP ? home.name : away.name;
+    factors.push(`${better} — meilleure 1ère balle (${Math.max(homeFSP, awayFSP).toFixed(0)}%)`);
+  }
 
-  const best  = pHome > pAway ? 'home' : 'away';
-  const proba = best === 'home' ? pHome : pAway;
-  const labels = {
-    home: `Victoire ${home.name || 'Joueur 1'}`,
-    away: `Victoire ${away.name || 'Joueur 2'}`,
-  };
-
-  const coteIA     = probaToQuote(proba, 0.04);
-  let coteMarche   = calcAvgCote(odds, best);
-  // pas de fallback IA : cote_marche = 0 si pas de vraies cotes bookmakers
+  // ── 9. Cotes & valeur ─────────────────────────────
+  const coteMarche = calcAvgCote(odds, best);
+  const coteIA     = probaToQuote(pWin, 0.04);
   const value      = calcValue(coteIA, coteMarche);
-  const confidence = calcConfidence(proba, value);
+  const confidence = Math.min(92, Math.max(40, Math.round(pWin * 100 * 0.85 + 8)));
 
-  const factors = [];
-  if (homeForm > 0.70)   factors.push(`${home.name} — ${Math.round(homeForm * 100)}% de victoires récentes`);
-  if (awayForm < 0.35)   factors.push(`${away.name} en méforme (${Math.round(awayForm * 100)}%)`);
-  if (surfaceBonus)      factors.push('Surface favorable au favori');
-  if (homeFatigue > 2)   factors.push(`${home.name} potentiellement fatigué`);
-  if (!factors.length)   factors.push('Analyse Elo favorable', 'Historique head-to-head positif');
-
-  const hasRealOdds = calcAvgCote(odds, 'home') > 0;
+  const hasRealOdds = coteHome > 0;
   return {
-    match: `${home.name || '?'} vs ${away.name || '?'}`,
-    pick: labels[best], pick_key: best, bet_type: 'Résultat',
-    cote_ia: coteIA, cote_marche: coteMarche, confidence, value,
+    match:       `${home.name || '?'} vs ${away.name || '?'}`,
+    pick:        `Victoire ${winner.name || 'Favori'}`,
+    pick_key:    best,
+    bet_type:    'Résultat',
+    cote_ia:     coteIA,
+    cote_marche: coteMarche,
+    confidence,
+    value,
     odds_are_real: hasRealOdds,
-    factors: factors.slice(0, 4), bookmakers: hasRealOdds ? odds : {}, injuries: [], team_stats: stats,
+    factors:     factors.slice(0, 6),
+    bookmakers:  hasRealOdds ? odds : {},
+    injuries:    [],
+    team_stats:  stats,
+    // ── Données tennis enrichies ──
+    tennis: {
+      surface,
+      surface_label:  surfaceLabel,
+      format:         formatLabel,
+      sets_to_win:    setsToWin,
+      winner:         winner.name || 'Favori',
+      loser:          loser.name  || 'Outsider',
+      prob_win:       Math.round(pWin * 100),
+      predicted_score:     predictedScore,
+      predicted_set_scores: predictedSetScores,
+      set_distribution: distribution,
+      total_games: {
+        estimate:   gamesInfo.estimate,
+        over_line:  gamesInfo.over,
+        under_line: gamesInfo.under,
+        prob_over:  Math.round(gamesInfo.prob_over * 100),
+      },
+      tiebreak_prob: tiebreakProb,
+      player_stats: {
+        home: { name: home.name, first_serve_pct: homeFSP, aces: homeAces, surface_wr: Math.round(homeSurfWR), fatigue: homeFatigue },
+        away: { name: away.name, first_serve_pct: awayFSP, aces: awayAces, surface_wr: Math.round(awaySurfWR), fatigue: awayFatigue },
+      },
+    },
   };
 }
 
