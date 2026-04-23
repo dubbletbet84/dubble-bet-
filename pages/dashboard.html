@@ -257,6 +257,20 @@
     let currentProno    = null;
     let reanalyzeCount  = 3;
     let currentPronoId  = null;
+    let currentSport    = 'football';
+
+    // ─── Sélection sport ──────────────────────────────
+    function selectSport(btn) {
+      document.querySelectorAll('.sport-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      currentSport = btn.dataset.sport;
+      // Réinitialiser l'analyse quand on change de sport
+      document.getElementById('analysisPanel').style.display = 'none';
+      if (document.getElementById('noMatchPanel'))
+        document.getElementById('noMatchPanel').style.display = 'none';
+      currentProno = null;
+      currentPronoId = null;
+    }
 
     // ─── Init ─────────────────────────────────────────
     document.addEventListener('DOMContentLoaded', async () => {
@@ -378,8 +392,13 @@
       overlay.classList.add('show');
       document.getElementById('generateBtn').disabled = true;
 
+      const sportLabels = {
+        football: 'des championnats de foot', tennis: 'des tournois tennis',
+        basketball: 'des matchs NBA / EuroLeague', mma: 'des combats UFC / MMA',
+        boxe: 'des combats de boxe', rugby: 'des matchs de rugby',
+      };
       const steps = [
-        'Scan des grands championnats en cours...',
+        `Scan ${sportLabels[currentSport] || 'des événements'} en cours...`,
         'Récupération des cotes bookmakers...',
         'Calcul des probabilités implicites...',
         'Sélection du meilleur pick...',
@@ -392,7 +411,7 @@
       }, 700);
 
       try {
-        const prono = await window.App.generatePronostic();
+        const prono = await window.App.generatePronostic(currentSport);
         clearInterval(interval);
         overlay.classList.remove('show');
         document.getElementById('generateBtn').disabled = false;

@@ -31,18 +31,33 @@ const FOOTBALL_LEAGUES = [
 // ─── Algorithme bookmakers — source primaire : The Odds API ───
 const axios = require('axios');
 
-// sport_key The Odds API → { league, af_id: API-Football league ID }
+// sport_key The Odds API → { league, sport, af_id (football uniquement) }
 const SPORT_KEY_TO_LEAGUE = {
-  'soccer_epl':                    { league: 'Premier League', af_id: 39  },
-  'soccer_efl_champ':              { league: 'Championship',   af_id: 40  },
-  'soccer_spain_la_liga':          { league: 'La Liga',        af_id: 140 },
-  'soccer_spain_segunda_division': { league: 'La Liga 2',      af_id: 141 },
-  'soccer_germany_bundesliga':     { league: 'Bundesliga',     af_id: 78  },
-  'soccer_germany_bundesliga2':    { league: '2. Bundesliga',  af_id: 79  },
-  'soccer_italy_serie_a':          { league: 'Serie A',        af_id: 135 },
-  'soccer_italy_serie_b':          { league: 'Serie B',        af_id: 136 },
-  'soccer_france_ligue_one':       { league: 'Ligue 1',        af_id: 61  },
-  'soccer_france_ligue_two':       { league: 'Ligue 2',        af_id: 62  },
+  // ─── Football ────────────────────────────────────────
+  'soccer_epl':                    { league: 'Premier League', sport: 'football', af_id: 39  },
+  'soccer_efl_champ':              { league: 'Championship',   sport: 'football', af_id: 40  },
+  'soccer_spain_la_liga':          { league: 'La Liga',        sport: 'football', af_id: 140 },
+  'soccer_spain_segunda_division': { league: 'La Liga 2',      sport: 'football', af_id: 141 },
+  'soccer_germany_bundesliga':     { league: 'Bundesliga',     sport: 'football', af_id: 78  },
+  'soccer_germany_bundesliga2':    { league: '2. Bundesliga',  sport: 'football', af_id: 79  },
+  'soccer_italy_serie_a':          { league: 'Serie A',        sport: 'football', af_id: 135 },
+  'soccer_italy_serie_b':          { league: 'Serie B',        sport: 'football', af_id: 136 },
+  'soccer_france_ligue_one':       { league: 'Ligue 1',        sport: 'football', af_id: 61  },
+  'soccer_france_ligue_two':       { league: 'Ligue 2',        sport: 'football', af_id: 62  },
+  'soccer_uefa_champs_league':     { league: 'Champions League', sport: 'football', af_id: 2 },
+  // ─── Tennis ──────────────────────────────────────────
+  'tennis_atp':                    { league: 'ATP Tour',       sport: 'tennis'   },
+  'tennis_wta':                    { league: 'WTA Tour',       sport: 'tennis'   },
+  // ─── Basketball ──────────────────────────────────────
+  'basketball_nba':                { league: 'NBA',            sport: 'basketball' },
+  'basketball_euroleague':         { league: 'EuroLeague',     sport: 'basketball' },
+  // ─── MMA ─────────────────────────────────────────────
+  'mma_mixed_martial_arts':        { league: 'UFC',            sport: 'mma'      },
+  // ─── Boxe ─────────────────────────────────────────────
+  'boxing_boxing':                 { league: 'Boxe mondiale',  sport: 'boxe'     },
+  // ─── Rugby ───────────────────────────────────────────
+  'rugbyleague_nrl':               { league: 'NRL',            sport: 'rugby'    },
+  'rugbyleague_super_league':      { league: 'Super League',   sport: 'rugby'    },
 };
 
 // ─── Cache classements API-Football (TTL 24h) ─────────
@@ -104,7 +119,10 @@ async function fetchAllOdds(KEY_O) {
   return _oddsCache;
 }
 
-async function runAlgo() {
+// Sports sans match nul (marché h2h à 2 issues uniquement)
+const TWO_WAY_SPORTS = new Set(['tennis', 'basketball', 'mma', 'boxe', 'rugby']);
+
+async function runAlgo(sportFilter = 'football') {
   const now    = new Date();
   const future = new Date();
   future.setDate(now.getDate() + 3);
@@ -112,13 +130,15 @@ async function runAlgo() {
   const KEY_AF = process.env.FOOTBALL_API_KEY || 'f19baef537e16102a9cf2050df18afe8';
   const KEY_O  = process.env.ODDS_API_KEY || '402dfe4ed1b2e82526e91725d6f02438';
 
-  // Récupère les cotes via le cache (max 1 appel API toutes les 2h par ligue)
+  // Récupère les cotes via le cache (15 min)
   const oddsData = await fetchAllOdds(KEY_O);
 
-  // Filtrer sur les 3 prochains jours uniquement
+  // Filtrer sur les 3 prochains jours + sport demandé
   const allEvents = oddsData.filter(o => {
     const d = new Date(o.commence_time);
-    return d >= now && d <= future;
+    if (d < now || d > future) return false;
+    const info = SPORT_KEY_TO_LEAGUE[o._sport_key];
+    return info && info.sport === sportFilter;
   });
 
   const picks = [];
@@ -129,16 +149,17 @@ async function runAlgo() {
     const leagueInfo = SPORT_KEY_TO_LEAGUE[matchOdds._sport_key];
     if (!leagueInfo) return;
 
-    // Bookmakers français prioritaires (clés The Odds API)
+    const { league, sport } = leagueInfo;
+    const isTwoWay = TWO_WAY_SPORTS.has(sport);
+
+    // Bookmakers français prioritaires
     const FR_KEYS = ['winamax_fr', 'betclic', 'unibet_fr', 'pmu', 'france_pari', 'parions_sport', 'vbet_fr', 'bwin_fr', 'pokerstars_fr'];
     const frBks = matchOdds.bookmakers.filter(bk => FR_KEYS.includes(bk.key));
-    // Fallback : si moins de 2 sites FR disponibles, on prend les EU
     const pool = frBks.length >= 2 ? frBks : matchOdds.bookmakers;
 
-    // Top 5 sites ayant les PLUS GROSSES cotes pour un outcome donné
-    // → moyenne = exactement la moyenne des 5 meilleures cotes affichées
+    // Moyenne des top 5 meilleures cotes pour un outcome
     function avgOdds(outcomeName, marketKey, point) {
-      const entries = []; // { bk, price }
+      const entries = [];
       for (const bk of pool) {
         const mkt = bk.markets.find(mk => mk.key === marketKey);
         if (!mkt) continue;
@@ -148,14 +169,11 @@ async function runAlgo() {
         if (o?.price) entries.push({ key: bk.key, title: bk.title, price: o.price });
       }
       if (!entries.length) return null;
-      // Trier par cote décroissante, garder les 5 meilleures
       entries.sort((a, b) => b.price - a.price);
       const top5 = entries.slice(0, 5);
-      const avg  = top5.reduce((s, e) => s + e.price, 0) / top5.length;
-      return parseFloat(avg.toFixed(2));
+      return parseFloat((top5.reduce((s, e) => s + e.price, 0) / top5.length).toFixed(2));
     }
 
-    // Même logique mais retourne aussi le détail des 5 sites (pour bookmakersObj)
     function top5ForOutcome(outcomeName, marketKey, point) {
       const entries = [];
       for (const bk of pool) {
@@ -172,33 +190,36 @@ async function runAlgo() {
 
     const avgHome = avgOdds(matchOdds.home_team, 'h2h');
     const avgAway = avgOdds(matchOdds.away_team, 'h2h');
-    const avgDraw = avgOdds('draw', 'h2h');
-    if (!avgHome || !avgAway || !avgDraw) return;
+    if (!avgHome || !avgAway) return;
 
-    // Devigging : probabilités réelles sans marge bookmaker
-    const margin   = (1/avgHome) + (1/avgAway) + (1/avgDraw);
-    const probHome = ((1/avgHome) / margin) * 100;
-    const probAway = ((1/avgAway) / margin) * 100;
-    const probDraw = ((1/avgDraw) / margin) * 100;
+    const avgDraw = isTwoWay ? null : avgOdds('draw', 'h2h');
+    if (!isTwoWay && !avgDraw) return;
+
+    // Devigging — 2 issues (tennis/basket/mma/boxe/rugby) ou 3 issues (football)
+    let probHome, probAway, probDraw;
+    if (isTwoWay) {
+      const margin = (1/avgHome) + (1/avgAway);
+      probHome = ((1/avgHome) / margin) * 100;
+      probAway = ((1/avgAway) / margin) * 100;
+      probDraw = 0;
+    } else {
+      const margin = (1/avgHome) + (1/avgAway) + (1/avgDraw);
+      probHome = ((1/avgHome) / margin) * 100;
+      probAway = ((1/avgAway) / margin) * 100;
+      probDraw = ((1/avgDraw) / margin) * 100;
+    }
 
     const matchStr = `${matchOdds.home_team} vs ${matchOdds.away_team}`;
     const date     = matchOdds.commence_time.split('T')[0];
-    const { league } = leagueInfo;
-    const extra = { _sport_key: matchOdds._sport_key, homeTeam: matchOdds.home_team, awayTeam: matchOdds.away_team };
+    const extra    = { _sport_key: matchOdds._sport_key, sport, homeTeam: matchOdds.home_team, awayTeam: matchOdds.away_team };
 
-    // Top 5 sites (les meilleures cotes h2h) → servent à construire bookmakersObj
+    // Construire l'objet bookmakers (top 5 sites)
     const top5Home = top5ForOutcome(matchOdds.home_team, 'h2h');
     const top5Away = top5ForOutcome(matchOdds.away_team, 'h2h');
-    const top5Draw = top5ForOutcome('draw', 'h2h');
-    // Union des 5 sites avec les meilleures cotes sur au moins un outcome
-    const bk5Keys = new Set([
-      ...top5Home.map(e => e.key),
-      ...top5Away.map(e => e.key),
-      ...top5Draw.map(e => e.key),
-    ]);
-    const bk5List = pool.filter(bk => bk5Keys.has(bk.key)).slice(0, 5);
+    const top5Draw = isTwoWay ? [] : top5ForOutcome('draw', 'h2h');
+    const bk5Keys  = new Set([...top5Home.map(e => e.key), ...top5Away.map(e => e.key), ...top5Draw.map(e => e.key)]);
+    const bk5List  = pool.filter(bk => bk5Keys.has(bk.key)).slice(0, 5);
 
-    // Objet bookmakers : exactement les 5 sites retenus (1X2 + double chances + buts)
     const bookmakersObj = {};
     for (const bk of bk5List) {
       const h = bk.markets.find(mk => mk.key === 'h2h');
@@ -206,19 +227,15 @@ async function runAlgo() {
       const homeO = h.outcomes.find(x => x.name === matchOdds.home_team);
       const awayO = h.outcomes.find(x => x.name === matchOdds.away_team);
       const drawO = h.outcomes.find(x => x.name.toLowerCase().includes('draw'));
-      const entry = {
-        home: homeO?.price ?? null,
-        draw: drawO?.price ?? null,
-        away: awayO?.price ?? null,
-      };
-      // Double chance calculée par bookmaker (cote juste = 1 / somme des probs)
-      const pH = homeO?.price ? 1/homeO.price : 0;
-      const pD = drawO?.price ? 1/drawO.price : 0;
-      const pA = awayO?.price ? 1/awayO.price : 0;
-      if (pH && pD) entry.dc_1X  = parseFloat((1/(pH+pD)).toFixed(2));
-      if (pD && pA) entry.dc_X2  = parseFloat((1/(pD+pA)).toFixed(2));
-      if (pH && pA) entry.dc_12  = parseFloat((1/(pH+pA)).toFixed(2));
-      // Buts (Over/Under)
+      const entry = { home: homeO?.price ?? null, draw: drawO?.price ?? null, away: awayO?.price ?? null };
+      if (!isTwoWay) {
+        const pH = homeO?.price ? 1/homeO.price : 0;
+        const pD = drawO?.price ? 1/drawO.price : 0;
+        const pA = awayO?.price ? 1/awayO.price : 0;
+        if (pH && pD) entry.dc_1X = parseFloat((1/(pH+pD)).toFixed(2));
+        if (pD && pA) entry.dc_X2 = parseFloat((1/(pD+pA)).toFixed(2));
+        if (pH && pA) entry.dc_12 = parseFloat((1/(pH+pA)).toFixed(2));
+      }
       const tot = bk.markets.find(mk => mk.key === 'totals');
       if (tot) {
         for (const o of tot.outcomes) {
@@ -231,25 +248,26 @@ async function runAlgo() {
       bookmakersObj[bk.title] = entry;
     }
 
-    // ── 1X2 ──────────────────────────────────────────────────────────
+    // ── 1X2 (ou 1X2 sans nul pour 2-way) ────────────────────────────
     if (avgHome >= 1.80 && probHome > 50)
       picks.push({ match: matchStr, league, date, pick: `Victoire ${matchOdds.home_team}`, pick_key: 'home', cote_marche: avgHome, prob: probHome, bookmakers: bookmakersObj, ...extra });
     if (avgAway >= 1.80 && probAway > 50)
       picks.push({ match: matchStr, league, date, pick: `Victoire ${matchOdds.away_team}`, pick_key: 'away', cote_marche: avgAway, prob: probAway, bookmakers: bookmakersObj, ...extra });
 
-    // ── Double chances (cote = 1/prob_devigged_combinée) ─────────────
-    const cote1X  = parseFloat((100 / (probHome + probDraw)).toFixed(2));
-    const coteX2  = parseFloat((100 / (probDraw + probAway)).toFixed(2));
-    const cote12  = parseFloat((100 / (probHome + probAway)).toFixed(2));
+    // ── Double chances (football uniquement) ─────────────────────────
+    if (!isTwoWay) {
+      const cote1X = parseFloat((100 / (probHome + probDraw)).toFixed(2));
+      const coteX2 = parseFloat((100 / (probDraw + probAway)).toFixed(2));
+      const cote12 = parseFloat((100 / (probHome + probAway)).toFixed(2));
+      if (cote1X >= 1.80 && (probHome + probDraw) > 50)
+        picks.push({ match: matchStr, league, date, pick: `Double chance 1X — ${matchOdds.home_team} ou Nul`, pick_key: 'dc_1X', cote_marche: cote1X, prob: probHome + probDraw, bookmakers: bookmakersObj, ...extra });
+      if (coteX2 >= 1.80 && (probDraw + probAway) > 50)
+        picks.push({ match: matchStr, league, date, pick: `Double chance X2 — Nul ou ${matchOdds.away_team}`, pick_key: 'dc_X2', cote_marche: coteX2, prob: probDraw + probAway, bookmakers: bookmakersObj, ...extra });
+      if (cote12 >= 1.80 && (probHome + probAway) > 50)
+        picks.push({ match: matchStr, league, date, pick: `Double chance 12 — ${matchOdds.home_team} ou ${matchOdds.away_team}`, pick_key: 'dc_12', cote_marche: cote12, prob: probHome + probAway, bookmakers: bookmakersObj, ...extra });
+    }
 
-    if (cote1X >= 1.80 && (probHome + probDraw) > 50)
-      picks.push({ match: matchStr, league, date, pick: `Double chance 1X — ${matchOdds.home_team} ou Nul`, pick_key: 'dc_1X', cote_marche: cote1X, prob: probHome + probDraw, bookmakers: bookmakersObj, ...extra });
-    if (coteX2 >= 1.80 && (probDraw + probAway) > 50)
-      picks.push({ match: matchStr, league, date, pick: `Double chance X2 — Nul ou ${matchOdds.away_team}`, pick_key: 'dc_X2', cote_marche: coteX2, prob: probDraw + probAway, bookmakers: bookmakersObj, ...extra });
-    if (cote12 >= 1.80 && (probHome + probAway) > 50)
-      picks.push({ match: matchStr, league, date, pick: `Double chance 12 — ${matchOdds.home_team} ou ${matchOdds.away_team}`, pick_key: 'dc_12', cote_marche: cote12, prob: probHome + probAway, bookmakers: bookmakersObj, ...extra });
-
-    // ── Buts : toutes les lignes disponibles (1.5, 2.5, 3.5…) ────────
+    // ── Buts / totaux ─────────────────────────────────────────────────
     const allTotals = bk5List[0]?.markets.find(mk => mk.key === 'totals')?.outcomes || [];
     const lines = allTotals.some(x => x.point != null)
       ? [...new Set(allTotals.filter(x => x.point != null).map(x => x.point))]
@@ -386,14 +404,17 @@ async function checkQuota(req, res, next) {
 // Génère un prono côté serveur (pas de CORS) + sauvegarde Supabase
 router.post('/generate', requireAuth, checkQuota, async (req, res) => {
   try {
-    const pick = await runAlgo();
+    const VALID_SPORTS = ['football', 'tennis', 'basketball', 'mma', 'boxe', 'rugby'];
+    const sport = VALID_SPORTS.includes(req.body?.sport) ? req.body.sport : 'football';
+
+    const pick = await runAlgo(sport);
     if (!pick) {
-      return res.status(422).json({ error: 'Aucun prono sécurisé trouvé pour les 3 prochains jours.' });
+      return res.status(422).json({ error: `Aucun prono sécurisé trouvé en ${sport} pour les 3 prochains jours.` });
     }
 
     const pronoData = {
       user_id:         req.user.id,
-      sport:           'football',
+      sport:           pick.sport || sport,
       league:          pick.league,
       date:            pick.date,
       match:           pick.match,

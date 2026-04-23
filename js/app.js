@@ -6,7 +6,7 @@
 const BACKEND_URL = 'https://dubble-bet-production.up.railway.app';
 
 // --- GÉNÉRATION PRONOSTIC (via backend Railway, pas de CORS) ---
-async function generatePronostic() {
+async function generatePronostic(sport = 'football') {
     // Récupérer le JWT Supabase pour authentifier la requête
     const session = await window.DB.getSession();
     if (!session) throw new Error('Tu dois être connecté pour générer un pronostic.');
@@ -16,7 +16,8 @@ async function generatePronostic() {
         headers: {
             'Content-Type': 'application/json',
             'Authorization': `Bearer ${session.access_token}`
-        }
+        },
+        body: JSON.stringify({ sport })
     });
 
     const data = await res.json();
