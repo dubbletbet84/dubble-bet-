@@ -17,6 +17,7 @@ app.set('trust proxy', 1);
 // ─── CORS : origines autorisées uniquement ────────────
 const ALLOWED_ORIGINS = [
   'https://dubblebet.netlify.app',
+  'https://dubbletbet84.github.io',
   'http://localhost:3000',
   'http://localhost:5500',
   'http://127.0.0.1:5500',

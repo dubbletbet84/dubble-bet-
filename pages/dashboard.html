@@ -369,17 +369,17 @@
         const max     = quota?.max     ?? 10;
         const remaining = quota?.remaining ?? Math.max(0, max - used);
 
-        document.getElementById('statTotal').textContent     = used;
-        document.getElementById('statWinRate').textContent   = winRate + '%';
-        document.getElementById('statValue').textContent     = '+' + avgValue.toFixed(1) + '%';
-        document.getElementById('statRemaining').textContent = max === -1 ? '∞' : remaining;
-        document.getElementById('quotaFill').style.width     = max === -1 ? '30%' : Math.min(100, used / max * 100) + '%';
+        const setEl = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
+        setEl('statTotal',     used);
+        setEl('statWinRate',   winRate + '%');
+        setEl('statRemaining', max === -1 ? '∞' : remaining);
+        const quotaFill = document.getElementById('quotaFill');
+        if (quotaFill) quotaFill.style.width = max === -1 ? '30%' : Math.min(100, used / max * 100) + '%';
       } catch (e) {
-        // Fallback démo si API indisponible
-        document.getElementById('statTotal').textContent     = '—';
-        document.getElementById('statWinRate').textContent   = '—';
-        document.getElementById('statValue').textContent     = '—';
-        document.getElementById('statRemaining').textContent = '—';
+        const setEl = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
+        setEl('statTotal',     '—');
+        setEl('statWinRate',   '—');
+        setEl('statRemaining', '—');
       }
     }
 
