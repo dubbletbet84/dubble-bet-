@@ -135,7 +135,7 @@ async function runAlgo(sportFilter = 'football') {
   future.setDate(now.getDate() + 3);
 
   const KEY_AF = process.env.FOOTBALL_API_KEY || 'f19baef537e16102a9cf2050df18afe8';
-  const KEY_O  = process.env.ODDS_API_KEY || '402dfe4ed1b2e82526e91725d6f02438';
+  const KEY_O  = process.env.ODDS_API_KEY || 'b25d36ad6a6b8d80c02e54efe3bb2c5e';
 
   // Récupère uniquement les cotes du sport demandé (cache 30 min par key)
   const oddsData = await fetchOddsForSport(sportFilter, KEY_O);
