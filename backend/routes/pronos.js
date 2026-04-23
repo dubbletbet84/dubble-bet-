@@ -31,19 +31,43 @@ const FOOTBALL_LEAGUES = [
 // ─── Algorithme bookmakers — source primaire : The Odds API ───
 const axios = require('axios');
 
-// sport_key The Odds API → { league, comp_code pour football-data standings }
+// sport_key The Odds API → { league, af_id: API-Football league ID }
 const SPORT_KEY_TO_LEAGUE = {
-  'soccer_epl':                    { league: 'Premier League', comp_code: 'PL'  },
-  'soccer_efl_champ':              { league: 'Championship',   comp_code: 'ELC' },
-  'soccer_spain_la_liga':          { league: 'La Liga',        comp_code: 'PD'  },
-  'soccer_spain_segunda_division': { league: 'La Liga 2',      comp_code: 'SD'  },
-  'soccer_germany_bundesliga':     { league: 'Bundesliga',     comp_code: 'BL1' },
-  'soccer_germany_bundesliga2':    { league: '2. Bundesliga',  comp_code: 'BL2' },
-  'soccer_italy_serie_a':          { league: 'Serie A',        comp_code: 'SA'  },
-  'soccer_italy_serie_b':          { league: 'Serie B',        comp_code: 'SB'  },
-  'soccer_france_ligue_one':       { league: 'Ligue 1',        comp_code: 'FL1' },
-  'soccer_france_ligue_two':       { league: 'Ligue 2',        comp_code: 'FL2' },
+  'soccer_epl':                    { league: 'Premier League', af_id: 39  },
+  'soccer_efl_champ':              { league: 'Championship',   af_id: 40  },
+  'soccer_spain_la_liga':          { league: 'La Liga',        af_id: 140 },
+  'soccer_spain_segunda_division': { league: 'La Liga 2',      af_id: 141 },
+  'soccer_germany_bundesliga':     { league: 'Bundesliga',     af_id: 78  },
+  'soccer_germany_bundesliga2':    { league: '2. Bundesliga',  af_id: 79  },
+  'soccer_italy_serie_a':          { league: 'Serie A',        af_id: 135 },
+  'soccer_italy_serie_b':          { league: 'Serie B',        af_id: 136 },
+  'soccer_france_ligue_one':       { league: 'Ligue 1',        af_id: 61  },
+  'soccer_france_ligue_two':       { league: 'Ligue 2',        af_id: 62  },
 };
+
+// ─── Cache classements API-Football (TTL 24h) ─────────
+// 1 appel par ligue par jour max → bien dans les 100 req/jour gratuits
+const _standingsCache = {};
+const STANDINGS_TTL   = 2 * 60 * 60 * 1000;
+
+async function fetchStandings(afLeagueId, KEY_AF) {
+  const cached = _standingsCache[afLeagueId];
+  if (cached && (Date.now() - cached.time) < STANDINGS_TTL) return cached.table;
+
+  const season = new Date().getMonth() >= 6
+    ? new Date().getFullYear()       // juil-déc → saison courante
+    : new Date().getFullYear() - 1;  // jan-juin → saison précédente
+
+  const res = await axios.get('https://v3.football.api-sports.io/standings', {
+    headers: { 'x-apisports-key': KEY_AF },
+    params:  { league: afLeagueId, season },
+    timeout: 6000,
+  });
+
+  const table = res.data?.response?.[0]?.league?.standings?.[0] || [];
+  _standingsCache[afLeagueId] = { table, time: Date.now() };
+  return table;
+}
 
 function cleanName(n) {
   return n.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
@@ -85,8 +109,8 @@ async function runAlgo() {
   const future = new Date();
   future.setDate(now.getDate() + 3);
 
-  const KEY_F = process.env.FOOTBALL_DATA_KEY || '0bebba720a484535a0105713e0fc7d66';
-  const KEY_O = process.env.ODDS_API_KEY || '402dfe4ed1b2e82526e91725d6f02438';
+  const KEY_AF = process.env.FOOTBALL_API_KEY || 'f19baef537e16102a9cf2050df18afe8';
+  const KEY_O  = process.env.ODDS_API_KEY || '402dfe4ed1b2e82526e91725d6f02438';
 
   // Récupère les cotes via le cache (max 1 appel API toutes les 2h par ligue)
   const oddsData = await fetchAllOdds(KEY_O);
@@ -159,8 +183,8 @@ async function runAlgo() {
 
     const matchStr = `${matchOdds.home_team} vs ${matchOdds.away_team}`;
     const date     = matchOdds.commence_time.split('T')[0];
-    const { league, comp_code } = leagueInfo;
-    const extra = { comp_code, homeTeam: matchOdds.home_team, awayTeam: matchOdds.away_team };
+    const { league } = leagueInfo;
+    const extra = { _sport_key: matchOdds._sport_key, homeTeam: matchOdds.home_team, awayTeam: matchOdds.away_team };
 
     // Top 5 sites (les meilleures cotes h2h) → servent à construire bookmakersObj
     const top5Home = top5ForOutcome(matchOdds.home_team, 'h2h');
@@ -265,58 +289,59 @@ async function runAlgo() {
     `Value edge : +${best.value.toFixed(1)}%`,
   ];
 
-  // Enrichissement stats via football-data.org (standings)
+  // Enrichissement stats via API-Football (standings, cache 2h)
   try {
-    const standRes = await axios.get(
-      `https://api.football-data.org/v4/competitions/${best.comp_code}/standings`,
-      { headers: { 'X-Auth-Token': KEY_F }, timeout: 6000 }
-    );
-    const table = standRes.data.standings?.find(s => s.type === 'TOTAL')?.table || [];
+    const afId = SPORT_KEY_TO_LEAGUE[best._sport_key]?.af_id;
+    if (afId) {
+      const table = await fetchStandings(afId, KEY_AF);
 
-    const findRow = name => table.find(r =>
-      cleanName(r.team.name).includes(cleanName(name)) ||
-      cleanName(name).includes(cleanName(r.team.name))
-    );
+      const findRow = name => table.find(r =>
+        cleanName(r.team.name).includes(cleanName(name)) ||
+        cleanName(name).includes(cleanName(r.team.name))
+      );
 
-    const hRow = findRow(best.homeTeam);
-    const aRow = findRow(best.awayTeam);
+      const hRow = findRow(best.homeTeam);
+      const aRow = findRow(best.awayTeam);
 
-    if (hRow && aRow) {
-      const avg = (v, g) => g ? (v / g).toFixed(1) : '—';
-      best.team_stats = {
-        home: {
-          name:          best.homeTeam,
-          position:      hRow.position,
-          form:          hRow.form || '—',
-          goals:         avg(hRow.goalsFor, hRow.playedGames),
-          goals_against: avg(hRow.goalsAgainst, hRow.playedGames),
-          won:  hRow.won,
-          draw: hRow.draw,
-          lost: hRow.lost,
-        },
-        away: {
-          name:          best.awayTeam,
-          position:      aRow.position,
-          form:          aRow.form || '—',
-          goals:         avg(aRow.goalsFor, aRow.playedGames),
-          goals_against: avg(aRow.goalsAgainst, aRow.playedGames),
-          won:  aRow.won,
-          draw: aRow.draw,
-          lost: aRow.lost,
-        },
-      };
+      if (hRow && aRow) {
+        const avg = (v, g) => g ? (v / g).toFixed(1) : '—';
+        best.team_stats = {
+          home: {
+            name:          best.homeTeam,
+            position:      hRow.rank,
+            form:          hRow.form || '—',
+            goals:         avg(hRow.all?.goals?.for,     hRow.all?.played),
+            goals_against: avg(hRow.all?.goals?.against, hRow.all?.played),
+            won:           hRow.all?.win,
+            draw:          hRow.all?.draw,
+            lost:          hRow.all?.lose,
+            points:        hRow.points,
+          },
+          away: {
+            name:          best.awayTeam,
+            position:      aRow.rank,
+            form:          aRow.form || '—',
+            goals:         avg(aRow.all?.goals?.for,     aRow.all?.played),
+            goals_against: avg(aRow.all?.goals?.against, aRow.all?.played),
+            won:           aRow.all?.win,
+            draw:          aRow.all?.draw,
+            lost:          aRow.all?.lose,
+            points:        aRow.points,
+          },
+        };
 
-      best.factors = [
-        `Probabilité implicite bookmakers : ${Math.round(best.prob)}%`,
-        `Cote moyenne (${Object.keys(best.bookmakers || {}).length} sites) : ${best.cote_marche.toFixed(2)}`,
-        `Value edge : +${best.value.toFixed(1)}%`,
-        `${best.homeTeam} — ${hRow.position}e au classement, forme : ${hRow.form || '—'}`,
-        `${best.awayTeam} — ${aRow.position}e au classement, forme : ${aRow.form || '—'}`,
-        `${best.homeTeam} : ${avg(hRow.goalsFor, hRow.playedGames)} buts/match marqués, ${avg(hRow.goalsAgainst, hRow.playedGames)} encaissés`,
-        `${best.awayTeam} : ${avg(aRow.goalsFor, aRow.playedGames)} buts/match marqués, ${avg(aRow.goalsAgainst, aRow.playedGames)} encaissés`,
-      ];
-      if (hRow.position < aRow.position)
-        best.factors.push(`${best.homeTeam} mieux classé de ${aRow.position - hRow.position} place(s)`);
+        best.factors = [
+          `Probabilité implicite bookmakers : ${Math.round(best.prob)}%`,
+          `Cote moyenne (${Object.keys(best.bookmakers || {}).length} sites) : ${best.cote_marche.toFixed(2)}`,
+          `Value edge : +${best.value.toFixed(1)}%`,
+          `${best.homeTeam} — ${hRow.rank}e au classement (${hRow.points} pts), forme : ${hRow.form || '—'}`,
+          `${best.awayTeam} — ${aRow.rank}e au classement (${aRow.points} pts), forme : ${aRow.form || '—'}`,
+          `${best.homeTeam} : ${avg(hRow.all?.goals?.for, hRow.all?.played)} buts/match marqués, ${avg(hRow.all?.goals?.against, hRow.all?.played)} encaissés`,
+          `${best.awayTeam} : ${avg(aRow.all?.goals?.for, aRow.all?.played)} buts/match marqués, ${avg(aRow.all?.goals?.against, aRow.all?.played)} encaissés`,
+        ];
+        if (hRow.rank < aRow.rank)
+          best.factors.push(`${best.homeTeam} mieux classé de ${aRow.rank - hRow.rank} place(s)`);
+      }
     }
   } catch (_) {
     // standings non dispo → facteurs de base conservés
