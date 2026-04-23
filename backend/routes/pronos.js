@@ -78,7 +78,7 @@ function cleanName(n) {
 // Évite de brûler le quota Odds API à chaque génération
 let _oddsCache     = null;
 let _oddsCacheTime = 0;
-const CACHE_TTL    = 2 * 60 * 60 * 1000; // 2 heures en ms
+const CACHE_TTL    = 15 * 60 * 1000; // 15 minutes en ms
 
 async function fetchAllOdds(KEY_O) {
   const age = Date.now() - _oddsCacheTime;
