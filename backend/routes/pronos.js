@@ -500,14 +500,32 @@ router.post('/generate', requireAuth, checkQuota, async (req, res) => {
       .single();
 
     if (error) throw error;
+
+    // Enrichissement tennis : score sets, tiebreak, surface…
+    let tennisData = null;
+    if (sport === 'tennis') {
+      try {
+        const tennisResult = prediction.predict({
+          sport:    'tennis',
+          league:   pick.league,
+          homeTeam: { name: pick.homeTeam },
+          awayTeam: { name: pick.awayTeam },
+          odds:     pick.bookmakers || {},
+          stats:    {},
+        });
+        tennisData = tennisResult.tennis || null;
+      } catch (_) {}
+    }
+
     // Renvoyer les données Supabase + données enrichies (non stockées en base)
     res.json({
       ...saved,
       bookmakers:    pick.bookmakers   || {},
       pick_key:      pick.pick_key,
-      odds_are_real: true,
+      odds_are_real: !pick.is_demo,
       team_stats:    pick.team_stats   || null,
       factors:       pick.factors      || [],
+      tennis:        tennisData,
     });
   } catch (err) {
     console.error('[pronos/generate]', err.message);
